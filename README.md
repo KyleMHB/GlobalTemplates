@@ -84,9 +84,10 @@ Explain which file should be created or updated and where it should be saved.
 
 ## Contributing & Forking Policy
 Contributions, issues, and feature requests are welcome!
-**Forking Policy:** If your fork primarily consists of bug fixes or feature additions that align with the core vision of this repo, I reserve the right to request that your changes be submitted as a Pull Request to my existing codebase rather than being published as a completely separate standalone release on Steam or GitHub.
+**Forking Policy:** If your fork primarily consists of bug fixes or feature additions that align with the core vision of this repo, I reserve the right to request that your changes be submitted as a Pull Request to my existing codebase rather than being published as a completely separate standalone release.
 
 ## License
 
 Released under the MIT License. See [`LICENSE`](LICENSE) for details.
-**Attribution Requirement:** You are free to use and modify this code, provided that you credit me and link back to this project in your Git repository, Steam Workshop page description, and the in-game mod info file.
+
+**Attribution Requirement:** You are free to use and modify this code, provided that you credit me and link back to this project in any release or publically facing repo.
