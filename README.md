@@ -21,6 +21,7 @@ GlobalTemplates/
 │   └── readmeTemplate.md
 ├── Steam/
 │   └── steamDescriptionTeamplate.md
+├── AGENTS.md
 ├── LICENSE
 └── README.md
 ```
