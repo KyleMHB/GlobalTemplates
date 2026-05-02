@@ -58,4 +58,4 @@ Provide links to my other mods, my GitHub repository, Discord server, or Ko-Fi/P
 **Execution & File Management:**
 When I provide you with the raw notes, code, or features for a new mod, respond ONLY with the fully formatted Steam BBCode description following the template above. Do not wrap the output in standard markdown code blocks, just output the raw BBCode ready for copy-pasting.
 
-**CRITICAL:** In addition to providing the output, you must write the generated BBCode to a file named `steamDescription.MD` in the root of the working repository. This ensures the description is saved locally so it can be easily read and updated during future prompts when features are added or modified.
+**CRITICAL:** In addition to providing the output, you must write the generated BBCode to a file named `steam-description.md` in the root of the working repository. This ensures the description is saved locally so it can be easily read and updated during future prompts when features are added or modified.

@@ -1,6 +1,6 @@
 # GlobalTemplates
 
-Reusable templates and instruction files for my development, GitHub, and Steam Workshop workflows.
+Reusable templates and instruction files for my development, GitHub, Steam Workshop, and game mod metadata workflows.
 
 This repository is the source of truth for shared `.md` and text templates that are used across projects. It keeps documentation, changelog, and publishing templates consistent without duplicating or rewriting the same instructions in every repo.
 
@@ -8,7 +8,8 @@ This repository is the source of truth for shared `.md` and text templates that 
 
 - Keep global templates in one version-controlled location.
 - Make Codex and other AI-assisted workflows use the same source templates.
-- Separate repo/GitHub templates from Steam Workshop templates.
+- Separate repo/GitHub templates from game mod metadata templates.
+- Provide reusable templates for Wayward `mod.json` and RimWorld `About/About.xml` files.
 - Reduce drift between local project documentation files.
 - Make template updates easy to track, review, and reuse.
 
@@ -32,9 +33,11 @@ Rules:
 For cloud environments where a local repo is not available, use the raw GitHub file URLs as a fallback.
 
 ```text
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/readmeTemplate.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/changeLogTemplate.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/steamDescriptionTeamplate.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/readme-template.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/change-log-template.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/steam-description-template.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/wayward/wayward-mod-json-template.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/rimworld/rimworld-about-xml-template.md
 ```
 
 ## Adding New Templates
@@ -42,7 +45,7 @@ https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/steamDescri
 When adding a new template:
 
 1. Place it in the folder that matches its workflow or target platform.
-2. Use a clear filename ending in `Template.md`.
+2. Use a clear kebab-case filename ending in `-template.md`.
 3. Include instructions inside the template, not only placeholder content.
 4. Define the expected output file name.
 5. Define formatting rules, required sections, and file-management behavior.
@@ -69,7 +72,7 @@ Explain which file should be created or updated and where it should be saved.
 ## Naming Guidelines
 
 - Use descriptive names that explain the target output.
-- Prefer `camelCaseTemplate.md` for template files.
+- Prefer kebab-case filenames for template files, such as `readme-template.md` or `steam-about-xml-template.md`.
 - Keep platform-specific templates in platform folders.
 - Keep GitHub/repository documentation templates in `Git/`.
 - Avoid renaming templates without updating Codex instructions and project references.

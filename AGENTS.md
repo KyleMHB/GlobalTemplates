@@ -150,22 +150,30 @@ When creating or updating markdown documentation:
 Template mappings:
 - README:
   - Target file: `README.md`
-  - Template path: `Git/readmeTemplate.md`
-  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/readmeTemplate.md`
+  - Template path: `Git/readme-template.md`
+  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/readme-template.md`
 - Changelog:
   - Target file: `CHANGELOG.md`
-  - Template path: `Git/changeLogTemplate.md`
-  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/changeLogTemplate.md`
+  - Template path: `Git/change-log-template.md`
+  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/change-log-template.md`
 - Steam Workshop description:
   - Target file: follow the filename required by the template.
-  - Template path: `Steam/steamDescriptionTeamplate.md`
-  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/steamDescriptionTeamplate.md`
+  - Template path: `Steam/steam-description-template.md`
+  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/steam-description-template.md`
+- Wayward mod metadata:
+  - Target file: `mod.json`
+  - Template path: `Steam/wayward/wayward-mod-json-template.md`
+  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/wayward/wayward-mod-json-template.md`
+- RimWorld mod metadata:
+  - Target file: `About/About.xml`
+  - Template path: `Steam/rimworld/rimworld-about-xml-template.md`
+  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/rimworld/rimworld-about-xml-template.md`
 
 ## Changelog Policy
 
 After successful implementation and validation, check for `CHANGELOG.md`.
 
-Use `changeLogTemplate.md` from the GlobalTemplates repository when accessible.
+Use `change-log-template.md` from the GlobalTemplates repository when accessible.
 
 The changelog must be a dated history of completed changes, with newest changes near the top.
 
