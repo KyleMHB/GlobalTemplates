@@ -12,69 +12,13 @@ This repository is the source of truth for shared `.md` and text templates that 
 - Reduce drift between local project documentation files.
 - Make template updates easy to track, review, and reuse.
 
-## Repository Structure
-
-```text
-GlobalTemplates/
-├── Git/
-│   ├── changeLogTemplate.md
-│   └── readmeTemplate.md
-├── Steam/
-│   └── steamDescriptionTeamplate.md
-├── AGENTS.md
-├── LICENSE
-└── README.md
-```
-
-> Note: `steamDescriptionTeamplate.md` appears to be intentionally listed as the current filename in this repo. If this is a typo, rename it to `steamDescriptionTemplate.md` and update any Codex or automation references that point to it.
-
-## Templates
-
-| Template | Folder | Output Target | Purpose |
-| --- | --- | --- | --- |
-| `readmeTemplate.md` | `Git/` | `README.md` | Generates GitHub README files for project repositories. |
-| `changeLogTemplate.md` | `Git/` | `CHANGELOG.md` | Generates and updates dated changelog history files. |
-| `steamDescriptionTeamplate.md` | `Steam/` | `steamDescription.MD` | Generates Steam Workshop descriptions using Steam BBCode. |
-
-## Recommended Setup
-
 The best way to use these globally is to keep this GitHub repository as the source of truth, then clone or pull it into a stable local templates folder.
 
-Example local setup:
-
-```powershell
-git clone https://github.com/KyleMHB/GlobalTemplates.git E:\Coding\Templates
-```
-
-To update local templates later:
-
-```powershell
-cd E:\Coding\Templates
-git pull
-```
-
-This keeps the templates available locally while still allowing changes to be tracked in GitHub.
-
-## Codex Usage
+## Agent Usage
 
 In Codex personal instructions, reference these templates by their local path when available.
 
-Suggested mapping:
-
 ```md
-When creating or updating markdown documentation, use the relevant template from `E:\Coding\Templates` if accessible.
-
-Template mappings:
-- README:
-  - Target file: `README.md`
-  - Template: `E:\Coding\Templates\Git\readmeTemplate.md`
-- Changelog:
-  - Target file: `CHANGELOG.md`
-  - Template: `E:\Coding\Templates\Git\changeLogTemplate.md`
-- Steam Workshop description:
-  - Target file: `steamDescription.MD`
-  - Template: `E:\Coding\Templates\Steam\steamDescriptionTeamplate.md`
-
 Rules:
 - Read and follow the relevant template before writing the target file.
 - Update existing repo files instead of creating duplicates.
@@ -85,7 +29,7 @@ Rules:
 
 ## GitHub Raw Usage
 
-For cloud environments where `E:\Coding\Templates` is not available, use the raw GitHub file URLs as a fallback.
+For cloud environments where a local repo is not available, use the raw GitHub file URLs as a fallback.
 
 ```text
 https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/readmeTemplate.md
@@ -138,6 +82,11 @@ Explain which file should be created or updated and where it should be saved.
 - Update templates when your workflow changes.
 - Keep this README in sync with the folder structure.
 
+## Contributing & Forking Policy
+Contributions, issues, and feature requests are welcome!
+**Forking Policy:** If your fork primarily consists of bug fixes or feature additions that align with the core vision of this repo, I reserve the right to request that your changes be submitted as a Pull Request to my existing codebase rather than being published as a completely separate standalone release on Steam or GitHub.
+
 ## License
 
 Released under the MIT License. See [`LICENSE`](LICENSE) for details.
+**Attribution Requirement:** You are free to use and modify this code, provided that you credit me and link back to this project in your Git repository, Steam Workshop page description, and the in-game mod info file.
