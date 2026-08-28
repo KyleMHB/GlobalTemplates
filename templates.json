@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "templates": [
+    {
+      "id": "readme",
+      "template": "Git/readme-template.md",
+      "target": "README.md",
+      "format": "gfm",
+      "appliesWhen": "Explicit template-backed README request"
+    },
+    {
+      "id": "changelog",
+      "template": "Git/change-log-template.md",
+      "target": "CHANGELOG.md",
+      "format": "gfm",
+      "appliesWhen": "Explicit template-backed changelog request"
+    },
+    {
+      "id": "project-overview",
+      "template": "Git/project-template.md",
+      "target": "PROJECT.md",
+      "format": "gfm",
+      "appliesWhen": "Explicit template-backed project overview request"
+    },
+    {
+      "id": "engineering-history",
+      "template": "Git/history-template.md",
+      "target": "HISTORY.md",
+      "format": "gfm",
+      "appliesWhen": "Explicit template-backed engineering history request"
+    },
+    {
+      "id": "technical-decisions",
+      "template": "Git/decisions-template.md",
+      "target": "DECISIONS.md",
+      "format": "gfm",
+      "appliesWhen": "Explicit template-backed decision log request"
+    },
+    {
+      "id": "testing-guide",
+      "template": "Git/testing-template.md",
+      "target": "TESTING.md",
+      "format": "gfm",
+      "appliesWhen": "Explicit template-backed testing guide request"
+    },
+    {
+      "id": "steam-description",
+      "template": "Steam/steam-description-template.md",
+      "target": "steam-description.md",
+      "format": "bbcode",
+      "appliesWhen": "Explicit template-backed Steam Workshop description request"
+    },
+    {
+      "id": "wayward-mod-json",
+      "template": "Steam/wayward/wayward-mod-json-template.md",
+      "target": "mod.json",
+      "format": "json",
+      "appliesWhen": "Explicit template-backed Wayward metadata request"
+    },
+    {
+      "id": "rimworld-about-xml",
+      "template": "Steam/rimworld/rimworld-about-xml-template.md",
+      "target": "About/About.xml",
+      "format": "xml",
+      "appliesWhen": "Explicit template-backed RimWorld metadata request"
+    }
+  ]
+}

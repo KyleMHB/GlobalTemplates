@@ -1,22 +1,16 @@
-# System Instructions: Repeatable Testing Guide
+# Testing Guide Template
 
-## Role
+## Use when
 
-Create or update `TESTING.md` with repeatable validation procedures, expected outcomes, current evidence, and a durable result-recording format.
+Use this template only when the user explicitly requests template-backed testing documentation or repeatable validation procedures materially change. Create or update `TESTING.md` in the project root.
 
-## Required behavior
+## Read route
 
-- Prefer commands and steps another person can reproduce without chat context.
-- Before updating, list test headings and read only prerequisites plus scenarios affected by the task.
-- Separate expected behavior from observed behavior.
-- Mark tests as Passed, Failed, Blocked, Pending, or Partially passed.
-- Include environment, version, configuration differences, and required permissions where relevant.
-- Never convert an unrun test into a pass because the code compiles.
-- Keep destructive, production, billing, or externally visible tests clearly labeled and approval-gated.
+List test headings and read only prerequisites and scenarios affected by the task. Keep `Agent read route` compact with a heading-search command, the smoke test, and major feature-to-scenario mappings.
 
 ## Recommended structure
 
-```md
+~~~md
 # [Project] Testing
 
 Updated through: [version or milestone] on YYYY-MM-DD
@@ -34,22 +28,14 @@ Updated through: [version or milestone] on YYYY-MM-DD
 ## Performance and soak test
 
 ## Result recording
-```
+~~~
 
-Each test should contain:
+Include only applicable scenarios. Each procedure should state preconditions, exact commands or actions, expected result, current status, caveats, and cleanup.
 
-- Preconditions.
-- Exact commands or actions.
-- Expected result.
-- Current status.
-- Known caveats or cleanup steps.
+## Result format
 
-Keep `Agent read route` compact: provide the heading-search command, identify the smoke test, and map major feature areas to their scenario headings.
-
-## Result entry format
-
-```md
-## YYYY-MM-DD — [Test name]
+~~~md
+## YYYY-MM-DD - [Test name]
 
 - Version/environment:
 - Configuration differences:
@@ -59,8 +45,17 @@ Keep `Agent read route` compact: provide the heading-search command, identify th
 - Evidence:
 - Status: Passed | Failed | Blocked | Pending | Partially passed
 - Follow-up:
-```
+~~~
 
-## File management
+## Update and validation
 
-Write the result to `TESTING.md` in the project root. Update existing procedures when behavior changes and preserve useful historical result entries.
+- Separate expected and observed behavior.
+- Never mark an unrun test as passed because code compiles.
+- Record environment, configuration, permissions, and version differences when relevant.
+- Label destructive, production, billing, and externally visible tests as approval-gated.
+- Update changed procedures while preserving useful historical results.
+- Confirm commands are reproducible and statuses match recorded evidence.
+
+## Delivery
+
+Write the result to `TESTING.md`. Return a concise summary and validation result. Do not reproduce the full document in chat unless requested.

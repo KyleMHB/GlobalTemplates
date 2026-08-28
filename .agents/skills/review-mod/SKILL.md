@@ -1,15 +1,23 @@
 ---
 name: review-mod
-description: Audit an existing or older game mod by reviewing its intent, repository structure, code quality, performance, compatibility, release artefacts, and current user-reported issues on Steam Workshop and GitHub. Use for a comprehensive mod health review or modernization assessment. Do not use for an ordinary code review limited to a small change or pull request.
+description: Audit an existing or older game mod and save a dated review, or turn a saved review into an approved, decision-complete implementation plan. Use for a comprehensive mod health review, modernization assessment, or planning operation based on review findings. Do not use for an ordinary code review limited to a small change or pull request.
 ---
 
 # Review Mod
 
-Produce an evidence-driven assessment of the mod in the current workspace. Adapt the review to the game and modding framework rather than assuming RimWorld, but apply the RimWorld checks below when relevant.
+Produce an evidence-driven assessment of the mod in the current workspace or create an implementation plan from a saved assessment. Adapt reviews to the game and modding framework rather than assuming RimWorld, but apply the RimWorld checks below when relevant.
+
+## Choose the operation
+
+- Use **review mode** for requests to audit, assess, modernize, or review a mod. Follow this file and save the completed report as described in **Save the review**.
+- Use **plan mode** when the user asks to plan from a review, run the plan operation, or decide how reviewed findings should be implemented. Read and follow [references/plan-operation.md](references/plan-operation.md).
+- When the requested operation is unclear, infer it from the requested outcome. Ask only if choosing the wrong mode would materially change the result.
+
+Do not implement mod changes in either mode. A completed plan is a separate deliverable that requires later implementation authorization.
 
 ## Operating boundary
 
-Default to a read-only audit. Inspect, build, test, research, and report, but do not edit project files, update dependencies, change Git state, publish, or modify Steam or GitHub. Implement fixes only when the user separately authorizes implementation.
+Default to a read-only audit. Inspect, build, test, research, and report, but do not edit project files, update dependencies, change Git state, publish, or modify Steam or GitHub. The only permitted project write in review mode is the dated review artifact requested by this skill. Implement fixes only when the user separately authorizes implementation.
 
 Read applicable repository instructions first. Respect any instruction that limits templates, network access, builds, or external actions.
 
@@ -101,3 +109,11 @@ Give every significant finding a stable ID such as `AUDIT-001`, severity (Critic
 Clearly separate confirmed defects, evidence-based concerns, speculative risks, maintainability improvements, and optional modernization. Avoid generic advice and do not recommend a rewrite without showing why incremental work is inadequate.
 
 End by directly answering whether the mod is well written, whether any features are badly implemented, whether it is performant, whether it is outdated, whether its published claims remain accurate, the five highest-value improvements, and whether continued maintenance is worthwhile.
+
+## Save the review
+
+After the review is complete, write the full report to `review YYYY-MM-DD.md` in the root of the mod being audited. Use the current local date. The brackets sometimes used when describing this filename indicate a date placeholder and are not literal characters.
+
+If that day's file already exists, replace it only after the new report is complete so a failed or interrupted run does not destroy the last complete report. Do not create numbered same-day variants. This artifact write does not authorize any other project edits.
+
+Return a concise executive summary and a link to the saved review. Do not substitute a short chat response for the complete file.

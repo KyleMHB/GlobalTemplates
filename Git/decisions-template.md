@@ -1,23 +1,17 @@
-# System Instructions: Technical Decision Log
+# Technical Decision Log Template
 
-## Role
+## Use when
 
-Create or update `DECISIONS.md` as a lightweight architectural decision record for choices that constrain future work.
+Use this template only when the user explicitly requests template-backed decisions or a choice constrains architecture, compatibility, data ownership, persistence, security, dependencies, public APIs, deployment, or long-term maintenance. Create or update `DECISIONS.md` in the project root.
 
-## Required behavior
+## Read route
 
-- Assign stable sequential identifiers such as `D-001`.
-- Before updating, list decision headings and search for the affected topic; read only matching records.
-- Preserve old decisions.
-- Change status to `Superseded` when a later decision replaces one, and link both records.
-- Record alternatives only when they clarify the trade-off.
-- Keep decisions short enough to scan but specific enough to guide implementation.
-- Keep a short `Agent read route` below the introduction that tells future agents to search headings and maps major topics to relevant IDs.
+List decision headings and search for the affected topic. Read only matching records. Keep a short `Agent read route` below the introduction that maps major topics to decision IDs.
 
 ## Decision structure
 
-```md
-## D-001 — [Decision title]
+~~~md
+## D-001 - [Decision title]
 
 - Status: Proposed | Accepted | Superseded | Rejected
 - Date: YYYY-MM-DD
@@ -32,16 +26,18 @@ Create or update `DECISIONS.md` as a lightweight architectural decision record f
 ### Alternatives considered
 
 ### Consequences
-```
+~~~
 
-Use only relevant subsections, but always include status, date, decision, reason, and consequences.
+Always include status, date, decision, reason, and consequences. Include other subsections only when they clarify the choice.
 
-## Inclusion rules
+## Update and validation
 
-Create a decision record when a choice affects architecture, compatibility, data ownership, persistence, security, dependencies, public APIs, deployment, or long-term maintenance.
+- Assign stable sequential IDs and never renumber existing decisions.
+- Preserve old decisions.
+- When a later decision replaces one, mark the old record `Superseded` and link both records.
+- Do not create records for trivial edits or choices already fixed by project convention.
+- Confirm IDs are unique, references resolve, and the recorded status matches the evidence.
 
-Do not create decision records for trivial edits or choices already dictated by an established project convention.
+## Delivery
 
-## File management
-
-Write the result to `DECISIONS.md` in the project root. Never renumber existing decisions.
+Write the result to `DECISIONS.md`. Return a concise summary and validation result. Do not reproduce the full document in chat unless requested.

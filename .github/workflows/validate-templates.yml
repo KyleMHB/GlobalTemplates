@@ -1,0 +1,24 @@
+name: Validate templates
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate template catalog and content
+        shell: pwsh
+        run: ./scripts/validate-templates.ps1
+
+      - name: Test validator failure cases
+        shell: pwsh
+        run: ./scripts/test-validator.ps1

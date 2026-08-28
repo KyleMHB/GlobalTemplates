@@ -1,0 +1,137 @@
+[CmdletBinding()]
+param()
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+$validatorPath = Join-Path $PSScriptRoot 'validate-templates.ps1'
+$fixtureSourcePaths = @(
+    'AGENTS.md'
+    'LICENSE'
+    'README.md'
+    'templates.json'
+    'Git'
+    'Steam'
+)
+$failedTests = [System.Collections.Generic.List[string]]::new()
+
+function Set-FixtureContent {
+    param(
+        [string]$FixtureRoot,
+        [string]$RelativePath,
+        [scriptblock]$Transform
+    )
+
+    $path = Join-Path $FixtureRoot $RelativePath
+    $content = Get-Content -Raw -LiteralPath $path
+    $updatedContent = & $Transform $content
+    Set-Content -LiteralPath $path -Value $updatedContent -NoNewline
+}
+
+function Test-InvalidFixture {
+    param(
+        [string]$Name,
+        [scriptblock]$Mutation,
+        [string]$ExpectedError
+    )
+
+    $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ("globaltemplates-validator-{0}" -f [guid]::NewGuid())
+    $null = New-Item -ItemType Directory -Path $fixtureRoot
+
+    try {
+        foreach ($relativePath in $fixtureSourcePaths) {
+            Copy-Item -LiteralPath (Join-Path $repositoryRoot $relativePath) -Destination $fixtureRoot -Recurse
+        }
+
+        & $Mutation $fixtureRoot
+        $output = (& $validatorPath -RootPath $fixtureRoot *>&1 | Out-String)
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -eq 0) {
+            $failedTests.Add("${Name}: validator unexpectedly succeeded")
+        } elseif ($output -notmatch [regex]::Escape($ExpectedError)) {
+            $failedTests.Add("${Name}: expected '$ExpectedError' but received: $output")
+        } else {
+            Write-Host "Passed: $Name" -ForegroundColor Green
+        }
+    } finally {
+        Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+$koFiMarkdown = '[![Support me on Ko-fi](https://img.shields.io/badge/Support_me_on_Ko--fi-72a4f2?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/I7L525WMJ6)'
+
+Test-InvalidFixture -Name 'missing Ko-fi badge' -ExpectedError 'missing or malformed linked Ko-fi badge' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+        param($content)
+        $content.Replace($koFiMarkdown, '')
+    }
+}
+
+Test-InvalidFixture -Name 'incorrect Ko-fi ID' -ExpectedError 'missing or malformed linked Ko-fi badge' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+        param($content)
+        $content.Replace('I7L525WMJ6', 'INVALID')
+    }
+}
+
+Test-InvalidFixture -Name 'broken root badge link' -ExpectedError 'missing or malformed linked Ko-fi badge' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'README.md' -Transform {
+        param($content)
+        $content.Replace('https://ko-fi.com/I7L525WMJ6', 'https://ko-fi.com/INVALID')
+    }
+}
+
+Test-InvalidFixture -Name 'missing repository placeholder' -ExpectedError 'missing or malformed linked GitHub repository badge' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+        param($content)
+        $content.Replace('{repository-url}', 'https://github.com/KyleMHB/HardcodedProject')
+    }
+}
+
+Test-InvalidFixture -Name 'malformed Steam BBCode' -ExpectedError 'missing or malformed linked Ko-fi badge' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('logoColor=white[/img][/url]', 'logoColor=white[/img]')
+    }
+}
+
+Test-InvalidFixture -Name 'prohibited script' -ExpectedError 'embedded scripts are not allowed' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+        param($content)
+        "$content`n<script src='https://example.com/widget.js'></script>"
+    }
+}
+
+Test-InvalidFixture -Name 'missing required How to Use guidance' -ExpectedError 'missing required How to Use guidance' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('### How to Use', '### Usage Notes')
+    }
+}
+
+Test-InvalidFixture -Name 'missing fork difference guidance' -ExpectedError 'missing required fork purpose and difference guidance' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('differences from the upstream mod', 'relationship to the upstream mod')
+    }
+}
+
+if ($failedTests.Count -gt 0) {
+    foreach ($failure in $failedTests) {
+        Write-Host "FAILED: $failure" -ForegroundColor Red
+    }
+
+    exit 1
+}
+
+Write-Host 'All validator failure-case tests passed.' -ForegroundColor Green

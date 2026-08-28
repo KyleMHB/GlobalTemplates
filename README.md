@@ -1,115 +1,83 @@
 # GlobalTemplates
 
-Reusable templates and instruction files for my development, GitHub, Steam Workshop, and game mod metadata workflows.
-
-This repository is the source of truth for shared `.md` and text templates that are used across projects. It keeps documentation, changelog, and publishing templates consistent without duplicating or rewriting the same instructions in every repo.
+Reusable, opt-in templates for repository documentation, Steam Workshop descriptions, and game mod metadata.
 
 ## Purpose
 
-- Keep global templates in one version-controlled location.
-- Make Codex and other AI-assisted workflows use the same source templates.
-- Separate repo/GitHub templates from game mod metadata templates.
-- Provide reusable templates for Wayward `mod.json` and RimWorld `About/About.xml` files.
-- Reduce drift between local project documentation files.
-- Make template updates easy to track, review, and reuse.
-- Preserve engineering context, decisions, evidence, and repeatable tests across sessions.
+This repository keeps shared templates in one version-controlled location so documentation and metadata rules stay consistent across projects. Templates are inspected or applied only when explicitly requested.
 
-The best way to use these globally is to keep this GitHub repository as the source of truth, then clone or pull it into a stable local templates folder.
+The canonical template catalog is [`templates.json`](templates.json). Local paths are resolved from this repository. Cloud environments can use this raw GitHub base URL when local files are unavailable and network access is allowed:
 
-## Agent Usage
+~~~text
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/
+~~~
 
-In Codex personal instructions, reference these templates by their local path when available.
+## Template catalog
 
-```md
-Rules:
-- Read and follow the relevant template before writing the target file.
-- Update existing repo files instead of creating duplicates.
-- Create missing target files from the relevant template.
-- Do not edit the global templates unless explicitly asked.
-- If the local template path is unavailable, report it clearly before using a fallback structure.
-```
-
-## GitHub Raw Usage
-
-For cloud environments where a local repo is not available, use the raw GitHub file URLs as a fallback.
-
-```text
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/readme-template.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/change-log-template.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/project-template.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/history-template.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/decisions-template.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/testing-template.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/steam-description-template.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/wayward/wayward-mod-json-template.md
-https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/rimworld/rimworld-about-xml-template.md
-```
-
-## Adding New Templates
-
-When adding a new template:
-
-1. Place it in the folder that matches its workflow or target platform.
-2. Use a clear kebab-case filename ending in `-template.md`.
-3. Include instructions inside the template, not only placeholder content.
-4. Define the expected output file name.
-5. Define formatting rules, required sections, and file-management behavior.
-6. Update this README with the new template mapping.
-
-Recommended template structure:
-
-```md
-# System Instructions: [Template Name]
-
-## Role
-Describe what the assistant or tool should act as.
-
-## Output Format Requirements
-Define the required format, such as GFM, BBCode, XML, JSON, or plain text.
-
-## Required Structure
-List the exact sections or fields the output must contain.
-
-## Execution & File Management
-Explain which file should be created or updated and where it should be saved.
-```
-
-## Naming Guidelines
-
-- Use descriptive names that explain the target output.
-- Prefer kebab-case filenames for template files, such as `readme-template.md` or `steam-about-xml-template.md`.
-- Keep platform-specific templates in platform folders.
-- Keep GitHub/repository documentation templates in `Git/`.
-- Avoid renaming templates without updating Codex instructions and project references.
-
-## Project Memory Templates
-
-Use these files together for projects that benefit from durable engineering context:
-
-| Target file | Template | Purpose |
+| Document | Template | Format |
 | --- | --- | --- |
-| `PROJECT.md` | `Git/project-template.md` | Current scope, architecture, validated status, risks, and next steps |
-| `HISTORY.md` | `Git/history-template.md` | Chronological evidence, failed attempts, corrections, and lessons |
-| `DECISIONS.md` | `Git/decisions-template.md` | Stable technical decisions and their consequences |
-| `TESTING.md` | `Git/testing-template.md` | Repeatable validation procedures and observed results |
-| `CHANGELOG.md` | `Git/change-log-template.md` | Concise release-oriented history |
+| `README.md` | `Git/readme-template.md` | GFM |
+| `CHANGELOG.md` | `Git/change-log-template.md` | GFM |
+| `PROJECT.md` | `Git/project-template.md` | GFM |
+| `HISTORY.md` | `Git/history-template.md` | GFM |
+| `DECISIONS.md` | `Git/decisions-template.md` | GFM |
+| `TESTING.md` | `Git/testing-template.md` | GFM |
+| `steam-description.md` | `Steam/steam-description-template.md` | BBCode |
+| `mod.json` | `Steam/wayward/wayward-mod-json-template.md` | JSON |
+| `About/About.xml` | `Steam/rimworld/rimworld-about-xml-template.md` | XML |
 
-Update only the documents affected by a task. `PROJECT.md` represents the present, `HISTORY.md` explains how the project arrived there, `DECISIONS.md` records constraints, and `TESTING.md` preserves reproducible evidence.
+## Usage
 
-## Maintenance Rules
+When template-backed work is requested:
 
-- Keep templates practical and reusable.
-- Avoid project-specific details unless the template is meant for a narrow workflow.
-- Keep instructions direct and action-oriented.
-- Update templates when your workflow changes.
-- Keep this README in sync with the folder structure.
+- Read only the relevant template.
+- Inspect the target project and existing document before writing.
+- Update existing files instead of creating duplicates.
+- Preserve useful project-specific content and confirmed identifiers.
+- Write the target file and return a concise change and validation summary.
+- Do not edit this source repository unless template maintenance is explicitly requested.
 
-## Contributing & Forking Policy
-Contributions, issues, and feature requests are welcome!
-**Forking Policy:** If your fork primarily consists of bug fixes or feature additions that align with the core vision of this repo, I reserve the right to request that your changes be submitted as a Pull Request to my existing codebase rather than being published as a completely separate standalone release.
+## Project memory
+
+The project-memory templates have separate responsibilities:
+
+- `PROJECT.md`: current scope, architecture, validated state, risks, and next steps.
+- `HISTORY.md`: chronological engineering evidence, corrections, and lessons.
+- `DECISIONS.md`: stable technical decisions and consequences.
+- `TESTING.md`: repeatable procedures and observed validation.
+- `CHANGELOG.md`: concise release-oriented history.
+
+Use only the documents that provide ongoing value. Read headings and the newest relevant sections instead of preloading full history.
+
+## Adding or changing templates
+
+1. Use a descriptive kebab-case filename ending in `-template.md`.
+2. State when the template applies, its target file, required evidence, update rules, validation, and delivery behavior.
+3. Keep project-specific detail only in narrow platform templates.
+4. Update `templates.json`, this catalog, and the mapping in `AGENTS.md`.
+5. Run the repository validator.
+
+~~~powershell
+pwsh -NoProfile -File scripts/validate-templates.ps1
+~~~
+
+## Contributing and Forking Policy
+
+Contributions, issues, and feature requests are welcome.
+
+**Forking Policy:** If your fork primarily consists of bug fixes or feature additions that align with the core vision of this repository, I reserve the right to request that your changes be submitted as a pull request to this existing codebase rather than being published as a separate standalone release.
+
+This is a project request, not an additional GPLv3 restriction.
+
+## Links
+
+[![Support me on Ko-fi](https://img.shields.io/badge/Support_me_on_Ko--fi-72a4f2?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/I7L525WMJ6)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/KyleMHB/GlobalTemplates)
 
 ## License
 
-Released under the MIT License. See [`LICENSE`](LICENSE) for details.
+Released under the **GNU General Public License v3.0**. See [`LICENSE`](LICENSE) for details.
 
-**Attribution Requirement:** You are free to use and modify this code, provided that you credit me and link back to this project in any release or publically facing repo.
+Copyright (C) 2026 KyleMHB.
+
+Commercial use is allowed under GPLv3. Distributed modified versions must remain under GPLv3 and make corresponding source available as required by the license.

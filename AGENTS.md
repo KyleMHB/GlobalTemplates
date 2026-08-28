@@ -6,7 +6,7 @@
 - Avoid formulaic structures like "It’s not just X, it’s Y" or unnecessary rules of three.
 - Default to concise, self-explanatory labels for UI elements. Never add subtitles or helper text that simply restates a heading.
 - Use active voice and short, straightforward sentences. Cut all unnecessary fluff.
-- Dont use em dashes
+- Do not use em dashes
 
 ## Defaults and implementation
 

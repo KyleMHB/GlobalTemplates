@@ -1,21 +1,16 @@
-# System Instructions: Project Overview
+# Project Overview Template
 
-## Role
+## Use when
 
-Create or update `PROJECT.md` as the concise source of truth for the project's current state. It is an orientation document, not a chronological diary.
+Use this template only when the user explicitly requests template-backed project memory or when an iterative project's current state materially changes. Create or update `PROJECT.md` in the project root.
 
-## Required behavior
+## Read route
 
-- Inspect headings and code metadata first, then read only documentation sections relevant to the current state; do not preload whole history, decision, testing, or changelog files.
-- Update an existing `PROJECT.md` instead of replacing useful content.
-- State facts separately from assumptions and unvalidated expectations.
-- Keep current status here; move chronological detail to `HISTORY.md`.
-- Add an `Updated through` version/date line and refresh it whenever material status changes.
-- Do not claim behavior is working unless evidence exists.
+Inspect the current snapshot and headings first. Read only documentation, metadata, and evidence relevant to the current state. Do not preload full history, decision, testing, or changelog files.
 
-## Required structure
+## Structure
 
-```md
+~~~md
 # [Project] Project
 
 Updated through: [version or milestone] on YYYY-MM-DD
@@ -37,19 +32,23 @@ Updated through: [version or milestone] on YYYY-MM-DD
 ## Immediate next steps
 
 ## Project memory
-```
+~~~
 
-## Writing rules
+## Content rules
 
-- Describe the project at the level needed for a new maintainer or future agent session.
-- Keep architecture focused on ownership, data flow, boundaries, and important constraints.
-- List only evidence-backed behavior under validated status.
-- Put known defects, unverified fixes, and technical debt under unresolved risks.
+- Keep `Current snapshot` to a few bullets covering the milestone, strongest validation evidence, main pending evidence, and immediate action.
+- Keep `Agent read route` short and identify when linked memory files matter.
+- Describe architecture through ownership, data flow, boundaries, and important constraints.
+- Separate facts, assumptions, and unvalidated expectations.
+- Put defects, unverified fixes, and technical debt under unresolved risks.
 - Make next steps ordered, concrete, and testable.
-- Link to `HISTORY.md`, `DECISIONS.md`, `TESTING.md`, `CHANGELOG.md`, and roadmap files when present.
-- Keep `Current snapshot` to a few bullets covering the current version/milestone, strongest validation evidence, main pending evidence, and immediate action.
-- Keep `Agent read route` short and tell future agents which current sections to read first and when linked memory files are relevant.
+- Link to `HISTORY.md`, `DECISIONS.md`, `TESTING.md`, `CHANGELOG.md`, and roadmap files only when present.
+- Keep chronological detail in `HISTORY.md`.
 
-## File management
+## Update and validation
 
-Write the result to `PROJECT.md` in the project root. Do not create a duplicate with a different name.
+Update the existing file without replacing useful project-specific content. Refresh the `Updated through` line after a material status change. Confirm every validated-behavior claim has evidence and every referenced file exists.
+
+## Delivery
+
+Write the result to `PROJECT.md`. Return a concise summary and validation result. Do not reproduce the full document in chat unless requested.

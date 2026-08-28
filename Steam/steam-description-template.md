@@ -1,61 +1,90 @@
-# System Instructions: Steam Workshop Mod Description Generator
+# Steam Workshop Description Template
 
-**Role:** You are an expert copywriter and community manager for Steam Workshop game mods. Your task is to generate an engaging, clear, and perfectly formatted Steam Workshop description for my game mod based on the information I provide.
+## Use when
 
-**Output Format Requirements (CRITICAL):**
-Steam does not support standard Markdown (like `#`, `**`, or `-`). You MUST write the final output using **Steam BBCode tags** so I can copy and paste it directly into the Steam Workshop publishing page. 
+Use this template only when the user explicitly requests a template-backed Steam Workshop description. Create or update `steam-description.md` in the project root.
 
-**Steam Formatting Rules to Follow:**
-- **Headers:** Use `[h1]Header Name[/h1]` or `[h2]Header Name[/h2]` (Do NOT use `#` or `##`).
-- **Bold Text:** Use `[b]text[/b]` (Do NOT use `**text**`).
-- **Italic Text:** Use `[i]text[/i]` (Do NOT use `*text*`).
-- **Lists:** Wrap the entire list in `[list]` and `[/list]`. Prefix every individual list item with `[*]`. 
-  *(Example: `[list][*]First item[*]Second item[/list]`)*
-- **Links:** Use `[url=https://example.com]Link Text[/url]` (Do NOT use `[Link](url)`).
-- **Dividers:** Use `[hr][/hr]` to create horizontal lines between major sections (Do NOT use `---`).
+## Evidence
 
----
+Inspect the mod and user-provided notes. Use only confirmed features, game versions, dependencies, compatibility, multiplayer behavior, save safety, authors, links, and license information.
 
-### Required Template Structure
+## Format
 
-You must organize the mod description using the exact headers below, in this exact order. Fill in the content based on the details I provide for the specific mod.
+Write Steam BBCode, not Markdown:
 
-[h1]Description of Mod[/h1]
-Write a catchy hook and a clear, concise summary of what the mod does. Explain the core problem it solves or the main enhancement it brings to the vanilla game.
+- Headers: `[h1]Heading[/h1]` or `[h2]Heading[/h2]`
+- Bold: `[b]text[/b]`
+- Italic: `[i]text[/i]`
+- Lists: `[list][*]First item[*]Second item[/list]`
+- Links: `[url=https://example.com]Link text[/url]`
+- Images: `[img]https://example.com/image.png[/img]`
+- Linked images: `[url=https://example.com][img]https://example.com/image.png[/img][/url]`
+- Divider: `[hr][/hr]`
 
-[h1]Features[/h1]
-[list]
-[*] Highlight the major features in a bulleted list.
-[*] Keep descriptions punchy and easy to read.
-[*] Use [b]bolding[/b] on key terms to make the list easily scannable.
-[/list]
+Keep the order natural for the mod instead of forcing every possible section.
 
-[h1]How to Use[/h1]
-Explain how the player actually interacts with the mod in-game. Are there hotkeys? Does a new menu pop up? Does it happen automatically? Make the onboarding seamless for a new subscriber.
+## Required content
 
-[h1]Compatibilities[/h1]
-List game version requirements, known conflicts with other popular mods, multiplayer compatibility (if applicable), and safe-to-add/remove mid-save status. If there is a specific load order required, mention it here.
+### Description
 
-[h1]Settings / Setup Instructions[/h1]
-Detail how to configure the mod. Explain where the settings are located (e.g., in-game mod options menu, a `.json` config file) and briefly explain what the user can tweak. 
+Use a clear hook and concise summary of what the mod changes and why it is useful.
 
-[hr][/hr]
+### Features
 
-[h1]Credits / Fork History[/h1]
-Acknowledge the original authors if this is a fork, and explicitly explain why this fork exists (e.g., the original mod is abandoned, it fixes a game-breaking bug, or it overhauls specific logic). List any open-source code or assets used, and provide special thanks to contributors or people who inspired the mod. 
+Use a scannable BBCode list of confirmed player-facing features.
 
-[h1]License & Forking Policy[/h1]
-If this mod is a fork, explicitly state that it inherits the original mod's license. If it is an original mod, state that it is released under the MIT License and include this explicit condition: "You are free to use and modify this code, provided that you credit me and link back to this project in your Git repository, Steam Workshop page description, and the in-game mod info file." 
+### How to Use
 
-Additionally, include a clear policy on forking: "If your fork primarily consists of bug fixes or feature additions that align with the core vision of this mod, I reserve the right to request that your changes be submitted as a Pull Request to my existing codebase rather than being published as a completely separate standalone release."
+Explain how players enable, configure, and use the mod in-game. Include relevant menus, controls, hotkeys, setup steps, or automatic behavior. Keep the instructions concise and evidence-based.
 
-[h1]Reference links to other mods[/h1]
-Provide links to my other mods, my GitHub repository, Discord server, or Ko-Fi/Patreon. 
-*(Format as: `[list][*][url=LINK]Mod Name / Link Title[/url][/list]`)*
+### Fork History
 
----
+For a fork, name the original mod and author, explain why the fork exists, and describe the meaningful differences from the upstream mod. Omit this section for original mods.
 
-**Execution & File Management:**
-When I provide you with the raw notes, code, or features for a new mod, respond ONLY with the fully formatted Steam BBCode description following the template above. Do not wrap the output in standard markdown code blocks, just output the raw BBCode ready for copy-pasting.
+### License and Forking Policy
 
-**CRITICAL:** In addition to providing the output, you must write the generated BBCode to a file named `steam-description.md` in the root of the working repository. This ensures the description is saved locally so it can be easily read and updated during future prompts when features are added or modified.
+For a fork, state that it inherits the original mod's license. Do not relicense it without authorization from the relevant copyright holders.
+
+For an original GPLv3 mod, state that commercial use is allowed and distributed modified versions must remain under GPLv3 with corresponding source available as required by the license.
+
+Include this non-binding project policy:
+
+> If your fork primarily consists of bug fixes or feature additions that align with the core vision of this mod, I reserve the right to request that your changes be submitted as a Pull Request to my existing codebase rather than being published as a completely separate standalone release.
+
+Make clear that this is a request, not an additional GPLv3 restriction.
+
+### Links
+
+For mods I own or maintain, include these linked badges in the Links section. Replace `{repository-url}` with the confirmed project repository URL. If no repository URL is confirmed, omit the GitHub badge instead of adding a placeholder to `steam-description.md`.
+
+Introduce the badges with: `Support me on Ko-fi.`
+
+[url=https://ko-fi.com/I7L525WMJ6][img]https://img.shields.io/badge/Support_me_on_Ko--fi-72a4f2?style=for-the-badge&logo=kofi&logoColor=white[/img][/url]
+[url={repository-url}][img]https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white[/img][/url]
+
+For a fork I maintain, introduce the badges with: `Support me on Ko-fi. This does not imply endorsement by the original authors.` Inspect the inherited license and upstream project terms, and omit the Ko-fi badge when support links or monetization are explicitly prohibited. Keep upstream attribution clear.
+
+Do not embed scripts or replace the badges with raw widget code.
+
+## Conditional content
+
+Include only when supported and useful:
+
+- Compatibility, load order, multiplayer behavior, and save safety
+- Settings or setup
+- Credits
+- Additional reference links
+
+Do not add empty sections or placeholder links.
+
+## Update rules
+
+Update an existing `steam-description.md` without discarding useful content. Preserve confirmed links, credits, compatibility notes, and formatting. Do not copy README or changelog text wholesale.
+
+## Validation
+
+Confirm BBCode tags are balanced, Markdown formatting is absent, required sections are present, How to Use gives actionable instructions, fork history explains both purpose and differences when applicable, badge destinations use confirmed values, links are confirmed, and compatibility and license claims match project evidence.
+
+## Delivery
+
+Write the result to `steam-description.md`. Return a concise summary and validation result. Do not reproduce the full description in chat unless requested.
