@@ -149,6 +149,67 @@ function Test-RequiredBadges {
     }
 }
 
+function Test-SteamSectionOrder {
+    param(
+        [string]$Location,
+        [string]$Content
+    )
+
+    $sectionMatch = [regex]::Match(
+        $Content,
+        '(?ms)^## Default section order\s*\r?\n(?<body>.*?)(?=^## |\z)'
+    )
+
+    if (-not $sectionMatch.Success) {
+        Add-ValidationError -Location $Location -Message 'missing default Steam section order'
+        return
+    }
+
+    $expectedSections = @(
+        'Description',
+        'Features',
+        'How to Use',
+        'Settings and Configuration',
+        'Requirements and Dependencies',
+        'Compatibility, Load Order, Multiplayer, and Save Safety',
+        'Fork History',
+        'Credits',
+        'License and Forking Policy',
+        'Links'
+    )
+
+    $actualSections = @(
+        foreach ($match in [regex]::Matches($sectionMatch.Groups['body'].Value, '(?m)^\d+\.\s+(?<name>.+?)\s*$')) {
+            $match.Groups['name'].Value.Trim() -replace ', (?:when applicable|required for forks|always last)$', ''
+        }
+    )
+
+    $orderIsValid = $actualSections.Count -eq $expectedSections.Count
+    if ($orderIsValid) {
+        for ($index = 0; $index -lt $expectedSections.Count; $index++) {
+            if ($actualSections[$index] -ne $expectedSections[$index]) {
+                $orderIsValid = $false
+                break
+            }
+        }
+    }
+
+    if (-not $orderIsValid) {
+        Add-ValidationError -Location $Location -Message 'reader-first Steam section order is invalid'
+    }
+
+    if (-not $Content.Contains('Dependencies must appear after How to Use.')) {
+        Add-ValidationError -Location $Location -Message 'missing dependencies-after-usage rule'
+    }
+
+    if (
+        $sectionMatch.Groups['body'].Value -notmatch '(?m)^10\. Links, always last\s*$' -or
+        -not $Content.Contains('Links must be the final section.')
+    ) {
+        Add-ValidationError -Location $Location -Message 'missing Links-last rule'
+    }
+}
+
 try {
     $resolvedRoot = (Resolve-Path -LiteralPath $RootPath).Path
 } catch {
@@ -256,6 +317,7 @@ foreach ($entry in $templateEntries) {
         Test-RequiredBadges -Location $source -Content $templateContent -Format 'gfm' -RepositoryUrl $repositoryUrlPlaceholder
     } elseif ($source -eq 'Steam/steam-description-template.md') {
         Test-RequiredBadges -Location $source -Content $templateContent -Format 'bbcode' -RepositoryUrl $repositoryUrlPlaceholder
+        Test-SteamSectionOrder -Location $source -Content $templateContent
 
         if (-not $templateContent.Contains('### How to Use')) {
             Add-ValidationError -Location $source -Message 'missing required How to Use guidance'

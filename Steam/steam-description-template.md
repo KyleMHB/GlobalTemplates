@@ -21,9 +21,24 @@ Write Steam BBCode, not Markdown:
 - Linked images: `[url=https://example.com][img]https://example.com/image.png[/img][/url]`
 - Divider: `[hr][/hr]`
 
-Keep the order natural for the mod instead of forcing every possible section.
+## Default section order
 
-## Required content
+Use this reader-first order and omit only the sections marked as conditional:
+
+1. Description
+2. Features
+3. How to Use
+4. Settings and Configuration, when applicable
+5. Requirements and Dependencies, when applicable
+6. Compatibility, Load Order, Multiplayer, and Save Safety, when applicable
+7. Fork History, required for forks
+8. Credits, when applicable
+9. License and Forking Policy
+10. Links, always last
+
+Description, Features, and How to Use must remain the first three content sections. Dependencies must appear after How to Use. Fork History, Credits, and License and Forking Policy must remain below the player-facing sections. Links must be the final section.
+
+## Section guidance
 
 ### Description
 
@@ -37,9 +52,25 @@ Use a scannable BBCode list of confirmed player-facing features.
 
 Explain how players enable, configure, and use the mod in-game. Include relevant menus, controls, hotkeys, setup steps, or automatic behavior. Keep the instructions concise and evidence-based.
 
+### Settings and Configuration
+
+Include only when players can configure meaningful behavior. Explain where settings are found and what the important options change.
+
+### Requirements and Dependencies
+
+Include only when the mod requires a game expansion, framework, library, companion mod, or special setup. Keep this section below How to Use even when the dependency is mandatory.
+
+### Compatibility, Load Order, Multiplayer, and Save Safety
+
+Include only confirmed and useful compatibility information. Cover required load order, known conflicts, multiplayer behavior, and whether the mod is safe to add or remove from existing saves when applicable.
+
 ### Fork History
 
 For a fork, name the original mod and author, explain why the fork exists, and describe the meaningful differences from the upstream mod. Omit this section for original mods.
+
+### Credits
+
+Include confirmed authors, contributors, asset creators, and upstream projects when credit is useful. Keep detailed provenance below the player-facing sections.
 
 ### License and Forking Policy
 
@@ -66,16 +97,9 @@ For a fork I maintain, introduce the badges with: `Support me on Ko-fi. This doe
 
 Do not embed scripts or replace the badges with raw widget code.
 
-## Conditional content
+## Applicability
 
-Include only when supported and useful:
-
-- Compatibility, load order, multiplayer behavior, and save safety
-- Settings or setup
-- Credits
-- Additional reference links
-
-Do not add empty sections or placeholder links.
+Description, Features, How to Use, License and Forking Policy, and Links are required. Settings and Configuration, Requirements and Dependencies, Compatibility, Load Order, Multiplayer, and Save Safety, and Credits are conditional. Fork History is required only for forks. Put additional reference links inside the final Links section. Do not add empty sections or placeholder links.
 
 ## Update rules
 
@@ -83,7 +107,7 @@ Update an existing `steam-description.md` without discarding useful content. Pre
 
 ## Validation
 
-Confirm BBCode tags are balanced, Markdown formatting is absent, required sections are present, How to Use gives actionable instructions, fork history explains both purpose and differences when applicable, badge destinations use confirmed values, links are confirmed, and compatibility and license claims match project evidence.
+Confirm BBCode tags are balanced, Markdown formatting is absent, required sections are present, the reader-first order is preserved, How to Use gives actionable instructions, dependencies follow How to Use, fork history explains both purpose and differences when applicable, Links is last, badge destinations use confirmed values, links are confirmed, and compatibility and license claims match project evidence.
 
 ## Delivery
 

@@ -126,6 +126,46 @@ Test-InvalidFixture -Name 'missing fork difference guidance' -ExpectedError 'mis
     }
 }
 
+Test-InvalidFixture -Name 'fork history before How to Use' -ExpectedError 'reader-first Steam section order is invalid' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('3. How to Use', '3. Fork History, required for forks').Replace('7. Fork History, required for forks', '7. How to Use')
+    }
+}
+
+Test-InvalidFixture -Name 'dependencies before How to Use' -ExpectedError 'reader-first Steam section order is invalid' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('3. How to Use', '3. Requirements and Dependencies, when applicable').Replace('5. Requirements and Dependencies, when applicable', '5. How to Use')
+    }
+}
+
+Test-InvalidFixture -Name 'missing Links-last guidance' -ExpectedError 'missing Links-last rule' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('10. Links, always last', '10. Links').Replace('Links must be the final section.', 'Links belong near the end.')
+    }
+}
+
+Test-InvalidFixture -Name 'Links before license' -ExpectedError 'reader-first Steam section order is invalid' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('9. License and Forking Policy', '9. TEMP SECTION').Replace('10. Links, always last', '10. License and Forking Policy').Replace('9. TEMP SECTION', '9. Links, always last')
+    }
+}
+
+Test-InvalidFixture -Name 'missing player-facing order' -ExpectedError 'reader-first Steam section order is invalid' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('2. Features', '2. Overview')
+    }
+}
+
 if ($failedTests.Count -gt 0) {
     foreach ($failure in $failedTests) {
         Write-Host "FAILED: $failure" -ForegroundColor Red
