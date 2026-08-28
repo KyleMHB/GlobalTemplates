@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Mod"
+  short_description: "Audit old mods, releases, and user reports"
+  default_prompt: "Use $review-mod to audit the current mod and report prioritized improvements."

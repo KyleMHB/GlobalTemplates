@@ -12,6 +12,7 @@ This repository is the source of truth for shared `.md` and text templates that 
 - Provide reusable templates for Wayward `mod.json` and RimWorld `About/About.xml` files.
 - Reduce drift between local project documentation files.
 - Make template updates easy to track, review, and reuse.
+- Preserve engineering context, decisions, evidence, and repeatable tests across sessions.
 
 The best way to use these globally is to keep this GitHub repository as the source of truth, then clone or pull it into a stable local templates folder.
 
@@ -35,6 +36,10 @@ For cloud environments where a local repo is not available, use the raw GitHub f
 ```text
 https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/readme-template.md
 https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/change-log-template.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/project-template.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/history-template.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/decisions-template.md
+https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/testing-template.md
 https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/steam-description-template.md
 https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/wayward/wayward-mod-json-template.md
 https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/rimworld/rimworld-about-xml-template.md
@@ -76,6 +81,20 @@ Explain which file should be created or updated and where it should be saved.
 - Keep platform-specific templates in platform folders.
 - Keep GitHub/repository documentation templates in `Git/`.
 - Avoid renaming templates without updating Codex instructions and project references.
+
+## Project Memory Templates
+
+Use these files together for projects that benefit from durable engineering context:
+
+| Target file | Template | Purpose |
+| --- | --- | --- |
+| `PROJECT.md` | `Git/project-template.md` | Current scope, architecture, validated status, risks, and next steps |
+| `HISTORY.md` | `Git/history-template.md` | Chronological evidence, failed attempts, corrections, and lessons |
+| `DECISIONS.md` | `Git/decisions-template.md` | Stable technical decisions and their consequences |
+| `TESTING.md` | `Git/testing-template.md` | Repeatable validation procedures and observed results |
+| `CHANGELOG.md` | `Git/change-log-template.md` | Concise release-oriented history |
+
+Update only the documents affected by a task. `PROJECT.md` represents the present, `HISTORY.md` explains how the project arrived there, `DECISIONS.md` records constraints, and `TESTING.md` preserves reproducible evidence.
 
 ## Maintenance Rules
 

@@ -7,6 +7,8 @@ You MUST write the changelog using standard **GitHub Flavored Markdown (GFM)**.
 
 The changelog is a historical record of completed changes. It must be factual, concise, and useful to users, maintainers, and future debugging.
 
+Generated changelogs should include one short line below `# Changelog` telling agents to read only the newest relevant release and locate older versions by heading search.
+
 ---
 
 ## Required Changelog Behavior
@@ -39,6 +41,8 @@ Use categories only when they contain entries. Omit empty categories in complete
 
 ```md
 # Changelog
+
+Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings.
 
 ## YYYY-MM-DD
 

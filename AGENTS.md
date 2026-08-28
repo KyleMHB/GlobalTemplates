@@ -1,218 +1,86 @@
 # Codex Personal Instructions
 
-## Operating Style
+## Writing and Copy Style
+- Write in a direct, plain, human voice. 
+- Never use AI cliché words like "delve," "testament," "unleash," "transformative," "game-changing," "seamless," or "revolutionize."
+- Avoid formulaic structures like "It’s not just X, it’s Y" or unnecessary rules of three.
+- Default to concise, self-explanatory labels for UI elements. Never add subtitles or helper text that simply restates a heading.
+- Use active voice and short, straightforward sentences. Cut all unnecessary fluff.
+- Dont use em dashes
 
-- Be concise. No pleasantries, filler, or unnecessary narration.
-- Prefer direct answers, clear assumptions, and practical implementation.
-- Explain logic briefly only when it affects design, trade-offs, or user decisions.
-- Use built-in APIs, platform standards, and existing project patterns before custom code.
-- Make the smallest safe change that solves the actual problem.
+## Defaults and implementation
 
-## Planning and Clarification
+- Be concise, direct, and practical. Explain reasoning only when it affects a decision.
+- Follow existing project conventions and prefer built-in APIs or existing utilities.
+- Make the smallest safe change that solves the request. Preserve unrelated work and avoid reformatting unchanged files.
+- Ask only when ambiguity materially changes architecture, behavior, data, dependencies, deployment, or user-visible results. Otherwise state a safe assumption and continue.
+- Keep existing separation between business logic, presentation, persistence, and integrations. Handle meaningful invalid state and failures explicitly; never silently swallow errors.
+- Preserve public APIs and behavior unless the task requires changing them. Comments explain why. Follow established naming; absent a convention, use `camelCase` for values/functions, `PascalCase` for types, and `kebab-case` for files.
+- Never hardcode secrets or add external services, telemetry, production dependencies, destructive migrations, or data deletion without explicit approval.
 
-Before writing or modifying code, make sure the intent, constraints, and success criteria are clear.
+## Validation, releases, and Git
 
-Ask clarifying questions before implementation when:
-- Requirements are ambiguous or multiple valid approaches exist.
-- The change affects architecture, data models, APIs, auth, state, deployment, or user-facing behavior.
-- The task may require destructive changes, migrations, new dependencies, or production deployment.
-- Existing project conventions conflict with the request.
-- The intended solution cannot be explained clearly.
-
-Ask about:
-- Success criteria.
-- The core problem being solved.
-- Intended logic and behavior.
-- Inputs, outputs, and edge cases.
-- What should be avoided.
-- Whether failures should throw, recover gracefully, or return a fallback.
-
-If uncertainty is minor and the safe path is obvious, state the assumption and continue.
-
-## Code Standards
-
-- Maintainability: prefer existing utilities, native APIs, and official standards.
-- Readability: prefer clear code over clever one-liners.
-- DRY/SOLID: use small, focused, single-responsibility functions.
-- Architecture: separate business logic, UI/presentation, persistence, and external integrations.
-- Error handling: never silently swallow errors. Log, throw, or surface exceptions appropriately.
-- Robustness: handle edge cases, null/undefined values, invalid inputs, async races, retries, and partial failures.
-- State: do not introduce hidden global state or mutate shared state unexpectedly.
-- Security: never hardcode secrets, API keys, tokens, credentials, or sensitive environment variables.
-- Data safety: do not delete, overwrite, migrate, or destructively modify data without explicit approval.
-
-## Naming and Comments
-
-Follow existing project conventions first. Use these defaults only when no convention exists:
-
-- `camelCase` for variables and functions.
-- `PascalCase` for classes, types, interfaces, and components.
-- `kebab-case` for file names.
-- Comments should explain WHY, not WHAT.
-
-## Editing and Refactoring
-
-- Make targeted edits only.
-- Do not rewrite unrelated code.
-- Do not reformat unchanged files.
-- Preserve existing file structure, public APIs, and behavior unless the task requires changing them.
-- Do not remove existing functionality unless asked.
-- Do not add abstractions unless they reduce real duplication or improve clarity.
-- In the final response, summarize meaningful changes instead of pasting entire files.
-
-## Dependencies and External APIs
-
-- Do not add new production dependencies unless necessary.
-- Prefer existing dependencies and native APIs first.
-- If a new dependency is justified, explain why briefly.
-- Do not introduce external services, network calls, telemetry, tracking, or data sharing without explicit approval.
-
-## Build, Test, and Validation
-
-After code changes:
-- Run the most relevant build, lint, typecheck, or test command available.
-- If no validation command exists, inspect project scripts/config and state that no obvious command was found.
-- Report validation results based strictly on facts.
-- Do not claim success unless the command actually passed.
-- If validation fails, explain the failure and likely cause.
-
-## Versioning and Releases
-
-After successful implementation and validation, determine whether the completed change is release-worthy.
-
-A change is release-worthy when it:
-- Adds features or capabilities.
-- Fixes bugs.
-- Changes behavior, compatibility, public APIs, or user-facing functionality.
-- Updates functionality that should be reflected in a published app/mod version.
-
-Do not bump versions for:
-- Docs-only changes.
-- Formatting-only changes.
-- Typo fixes.
-- Failed or partial tasks.
-- Exploratory work.
-- Purely mechanical changes with no useful release value.
-
-When a version bump is needed:
-- Use Semantic Versioning where the project already uses SemVer.
-- Use MAJOR for breaking changes.
-- Use MINOR for new features or meaningful behavior additions.
-- Use PATCH for bug fixes, compatibility fixes, refactors, and internal improvements.
-- Preserve the project’s existing version format, such as `1.2.3` or `v1.2.3`.
-- Update all existing recognized version fields in relevant project files.
-- Do not create new manifest files or invent version fields unless explicitly asked.
-- If the correct version bump is ambiguous, ask before changing versions.
-
-Common version files to check when present:
-- `package.json`
-- `manifest.json`
-- `About.xml`
-- `package.xml`
-- Any existing project-specific config or metadata file containing the current version.
-
-Do not push, publish, upload, or deploy after a version bump unless explicitly instructed.
-
-## Git Rules
-
-- Check whether the current folder is a git repository before commit-related work.
-- If it is not a git repository, do not run `git init` automatically.
-- Ask for the project name and confirmation before initialising git.
-- Do not push, publish, upload, or deploy unless explicitly instructed.
-- Local commits are allowed after successful validated tasks when in a git repository, unless explicitly told not to commit.
-- Only commit after:
-  - The requested change is complete.
-  - Relevant validation has passed, or failures are clearly reported.
-  - Required markdown/template updates are complete when applicable.
-  - Versioning has been considered and applied when needed.
-- Commit functional changes, markdown updates, and version updates together unless explicitly asked to create a separate release commit.
-- For explicit release or publish tasks, the version bump and changelog release entry may be committed separately.
-- Use concise conventional commit messages.
-- Example: `fix: prevent duplicate checkout submissions`
-- Example release commit: `chore: bump version to 1.2.3`
+- After code changes, run the smallest relevant build, test, lint, or typecheck. Report observed results and disclose failures or unavailable validation.
+- Consider versioning only for completed behavior, compatibility, API, or feature changes. Follow the existing SemVer format; do not bump documentation-only, formatting, exploratory, failed, or partial work. Ask if the correct bump is ambiguous.
+- Check repository status before commit-related work. Do not initialize a repository, push, publish, upload, or deploy unless explicitly requested.
+- A local commit is allowed only after the requested work and relevant validation are complete. Keep related implementation, documentation, and version changes together unless requested otherwise.
 
 ## Markdown Files and Global Templates
 
-Use the GlobalTemplates repository as the source of truth for reusable markdown templates:
-- Repository: `https://github.com/KyleMHB/GlobalTemplates`
-- Preferred local clone: `E:\Coding\Templates\GlobalTemplates`
-- Fallback local path: `E:\Coding\Templates`
+Inspect or use templates only when the user explicitly requests template-backed documentation or template changes. Use `E:\Coding\Templates` locally, with `https://github.com/KyleMHB/GlobalTemplates` as a fallback when local files are unavailable and network access is allowed. Update existing documents without replacing useful project-specific content; never edit source templates unless explicitly asked.
 
-When creating or updating markdown documentation:
-- Read and follow the relevant template instructions before writing the target file.
-- Prefer the local template path when accessible.
-- If local templates are unavailable, use the raw GitHub template URL when network access is available.
-- If neither local nor remote templates are accessible, report that clearly and use the safest fallback structure only when appropriate.
-- Do not edit global templates unless explicitly asked. Use them as source templates only.
-- If the target markdown file already exists in the repo, update it instead of creating a duplicate.
-- Do not overwrite useful project-specific content or markdown history unless explicitly asked.
-
-Template mappings:
-- README:
-  - Target file: `README.md`
-  - Template path: `Git/readme-template.md`
-  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/readme-template.md`
-- Changelog:
-  - Target file: `CHANGELOG.md`
-  - Template path: `Git/change-log-template.md`
-  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Git/change-log-template.md`
-- Steam Workshop description:
-  - Target file: follow the filename required by the template.
-  - Template path: `Steam/steam-description-template.md`
-  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/steam-description-template.md`
-- Wayward mod metadata:
-  - Target file: `mod.json`
-  - Template path: `Steam/wayward/wayward-mod-json-template.md`
-  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/wayward/wayward-mod-json-template.md`
-- RimWorld mod metadata:
-  - Target file: `About/About.xml`
-  - Template path: `Steam/rimworld/rimworld-about-xml-template.md`
-  - Remote fallback: `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/Steam/rimworld/rimworld-about-xml-template.md`
+| Document | Template |
+| --- | --- |
+| `README.md` | `Git/readme-template.md` |
+| `CHANGELOG.md` | `Git/change-log-template.md` |
+| `PROJECT.md` | `Git/project-template.md` |
+| `HISTORY.md` | `Git/history-template.md` |
+| `DECISIONS.md` | `Git/decisions-template.md` |
+| `TESTING.md` | `Git/testing-template.md` |
+| Steam Workshop description | `Steam/steam-description-template.md` |
+| Wayward `mod.json` | `Steam/wayward/wayward-mod-json-template.md` |
+| RimWorld `About/About.xml` | `Steam/rimworld/rimworld-about-xml-template.md` |
 
 ## Changelog Policy
 
-After successful implementation and validation, check for `CHANGELOG.md`.
+Update `CHANGELOG.md` only after successful implementation with useful historical, user-facing, maintainer-facing, or operational impact. Preserve its existing version/date style and history, add concise entries near the top under `Added`, `Changed`, `Fixed`, `Removed`, or `Internal`, and omit mechanical changes and empty categories.
 
-Use `change-log-template.md` from the GlobalTemplates repository when accessible.
+## Token-Efficient Project Memory
 
-The changelog must be a dated history of completed changes, with newest changes near the top.
+Use structured project memory when a project is iterative, spans multiple sessions, includes material debugging or architectural decisions, or when the user requests durable context.
 
-Preferred heading format when a version bump is applied:
-- `## VERSION - YYYY-MM-DD`
-- Example: `## 1.2.3 - 2026-05-02`
+The project-memory files have distinct responsibilities:
 
-If no version bump is needed, use a date-only heading:
-- `## YYYY-MM-DD`
+- `PROJECT.md`: current purpose, scope, architecture, validated behavior, unresolved risks, and immediate next steps.
+- `HISTORY.md`: append-only chronological record of meaningful changes, evidence, failed attempts, corrections, and lessons.
+- `DECISIONS.md`: stable numbered technical decisions, rationale, alternatives, status, and consequences.
+- `TESTING.md`: repeatable commands and procedures, expected outcomes, observed evidence, and validation status.
+- `CHANGELOG.md`: concise release-oriented history; do not use it as a debugging diary.
 
-Rules:
-- Update the existing `CHANGELOG.md` instead of creating a duplicate.
-- If no `CHANGELOG.md` exists, create one from `changeLogTemplate.md`.
-- Use the current local date in `YYYY-MM-DD` format.
-- Add a new version/date or date-only section near the top.
-- Append entries under the correct category.
-- Preserve previous changelog history.
-- Do not rewrite old entries unless fixing an obvious error or duplicate.
-- Omit empty categories.
-- Write concise entries focused on user-facing, maintainer-facing, or operational impact.
-- Do not include commit hashes unless requested.
-- Do not mention tests unless the change itself is test-related.
-- Omit purely mechanical changes with no useful historical value.
+At the start of a task, do not preload or read these files wholesale:
 
-Standard categories:
-- `Added` for new features or capabilities.
-- `Changed` for behavior, UX, API, workflow, or configuration changes.
-- `Fixed` for bug fixes.
-- `Removed` for deleted behavior, files, features, or APIs.
-- `Internal` for refactors, dependency updates, build tooling, or non-user-facing work.
+1. Open the short read route/current snapshot at the top of `PROJECT.md`.
+2. Search headings or keywords in `HISTORY.md`; read only the newest relevant entry.
+3. Search `DECISIONS.md` only when changing architecture or an established constraint; read only matching records.
+4. Read only relevant prerequisites and scenarios from `TESTING.md` when reproducing or validating.
+5. Read only the newest relevant `CHANGELOG.md` entry when released behavior matters.
 
-## Final Response Format
+Do not reread unchanged content already present in the current conversation. Expand to older sections only when current evidence is insufficient or when tracing a regression or rejected approach.
 
-When finished, respond with:
-- What changed.
-- Why, briefly.
-- Validation performed and result.
-- Versioning status.
-- Markdown/template status.
-- Changelog status.
-- Git status.
-- Deploy/publish/upload status.
+After meaningful work:
+
+- Update only the documents affected by the task.
+- Update `PROJECT.md` when current status, risks, architecture, or priorities change.
+- Add a `HISTORY.md` entry for material features, root-cause discoveries, failed approaches likely to recur, operational incidents, or evidence that changed direction.
+- Add or supersede a `DECISIONS.md` entry when a choice constrains future implementation.
+- Update `TESTING.md` when commands, expectations, coverage, or observed results change.
+- Keep facts, assumptions, and pending validation clearly separated.
+- Preserve rejected approaches and explain why they failed instead of deleting them.
+- Never record secrets, credentials, private tokens, or sensitive personal data.
+- Documentation-only project-memory updates do not require a version bump.
+
+Do not create all project-memory files mechanically for trivial or short-lived work. Create them when their ongoing value justifies the maintenance cost, or when explicitly requested.
+
+## Delivery
+
+Lead with the outcome. Include validation and material caveats. Mention versioning, documentation, changelog, Git, or deployment status only when relevant; do not emit a fixed status checklist for simple tasks.

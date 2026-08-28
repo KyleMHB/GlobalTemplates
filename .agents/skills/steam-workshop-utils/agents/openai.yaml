@@ -1,0 +1,4 @@
+interface:
+  display_name: "Steam Workshop Utils"
+  short_description: "Steam Workshop mod conflicts, overlap, and compatibility"
+  default_prompt: "Use $steam-workshop-utils to sync Steam Workshop metadata and comments, then report conflict, overlap, and compatibility evidence."

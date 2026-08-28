@@ -1,0 +1,80 @@
+{
+  "templates": {
+    "basic": {
+      "name": "basic",
+      "title": "Basic Check",
+      "default_format": "html",
+      "problem_only": true,
+      "description": "Default modlist health check using Steam Workshop metadata, descriptions, and comments.",
+      "questions": [
+        {
+          "id": "dependency_fulfillment",
+          "question": "Is there dependency evidence that needs review?",
+          "description": "Looks for dependency wording, required Workshop IDs, and load-order dependency hints. Matching is evidence-based and not a structured dependency guarantee.",
+          "mode": "dependency_fulfillment",
+          "include_statuses": ["missing", "uncertain"],
+          "categories": ["dependencies"]
+        },
+        {
+          "id": "user_errors",
+          "question": "Are user comments experiencing errors with any of the mods?",
+          "description": "Looks for crashes, exceptions, broken behavior, and similar user-reported issues.",
+          "mode": "evidence",
+          "categories": ["errors"]
+        },
+        {
+          "id": "mod_conflicts",
+          "question": "Are there any reported conflicts between my mods?",
+          "description": "Looks for incompatibility or load-order evidence that references another selected mod.",
+          "mode": "selected_mod_conflicts",
+          "include_statuses": ["between_selected_mods"],
+          "categories": ["incompatibility", "load_order"]
+        },
+        {
+          "id": "mod_overlaps",
+          "question": "Do any selected mods have overlapping functionality?",
+          "description": "Looks for overlap, redundancy, duplicate functionality, or same-purpose wording that references another selected mod.",
+          "mode": "selected_mod_overlap",
+          "include_statuses": ["between_selected_mods"],
+          "categories": ["overlap"]
+        },
+        {
+          "id": "mod_compatibility",
+          "question": "Are any selected mods reported compatible with each other?",
+          "description": "Looks for positive compatibility, integration, patch, or works-alongside evidence that references another selected mod.",
+          "mode": "selected_mod_compatibility",
+          "include_statuses": ["compatible_selected_mods"],
+          "categories": ["compatibility"]
+        },
+        {
+          "id": "alternative_mods",
+          "question": "Are users suggesting alternative mods to any that I have?",
+          "description": "Looks for replacement and alternative-mod suggestions in descriptions and comments.",
+          "mode": "evidence",
+          "categories": ["alternatives"]
+        },
+        {
+          "id": "performance_reports",
+          "question": "Are there any performance issues that people are reporting?",
+          "description": "Looks for lag, FPS, stutter, memory, and other performance reports.",
+          "mode": "evidence",
+          "categories": ["performance"]
+        },
+        {
+          "id": "game_version_compatibility",
+          "question": "Is there version or build concern evidence?",
+          "description": "Looks for outdated, unsupported, wrong-version, or needs-update wording. No target game version is assumed.",
+          "mode": "version_problems",
+          "categories": ["version", "incompatibility"]
+        },
+        {
+          "id": "negative_user_sentiment",
+          "question": "Which mods have negative user sentiment?",
+          "description": "Highlights strongly negative wording in user comments and descriptions, including abandoned, outdated, unusable, or avoid-this reports.",
+          "mode": "evidence",
+          "categories": ["sentiment_negative"]
+        }
+      ]
+    }
+  }
+}
