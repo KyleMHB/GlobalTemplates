@@ -4,7 +4,7 @@
 
 Use this template only when the user explicitly requests template-backed testing documentation or repeatable validation procedures materially change. Create or update `TESTING.md` in the project root.
 
-## Read route
+## Evidence
 
 List test headings and read only prerequisites and scenarios affected by the task. Keep `Agent read route` compact with a heading-search command, the smoke test, and major feature-to-scenario mappings.
 
@@ -47,14 +47,19 @@ Include only applicable scenarios. Each procedure should state preconditions, ex
 - Follow-up:
 ~~~
 
-## Update and validation
+## Update rules
 
 - Separate expected and observed behavior.
 - Never mark an unrun test as passed because code compiles.
 - Record environment, configuration, permissions, and version differences when relevant.
 - Label destructive, production, billing, and externally visible tests as approval-gated.
 - Update changed procedures while preserving useful historical results.
-- Confirm commands are reproducible and statuses match recorded evidence.
+
+Create the file automatically only when repeatable procedures, expectations, or evidence materially change.
+
+## Validation
+
+Confirm commands are reproducible and statuses match recorded evidence.
 
 ## Delivery
 

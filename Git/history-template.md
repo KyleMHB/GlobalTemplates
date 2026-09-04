@@ -4,7 +4,7 @@
 
 Use this template only when the user explicitly requests template-backed engineering history or meaningful implementation evidence should be preserved across sessions. Create or update `HISTORY.md` in the project root.
 
-## Read route
+## Evidence
 
 List entry headings and read only the newest entries relevant to the task. Keep a short `Agent read route` below the introduction with a heading-search command and recent topic names.
 
@@ -43,9 +43,13 @@ Record:
 
 Do not record routine commands, formatting changes, unsupported speculation, secrets, credentials, private tokens, or sensitive personal data.
 
-## Update and validation
+## Update rules
 
-Add newest entries near the top. Preserve prior entries and failed attempts; mark superseded information instead of deleting it. Separate observations, assumptions, and conclusions. Confirm dates, versions, errors, and cross-references against available evidence.
+Create the file automatically only for durable implementation evidence, root causes, rejected approaches, incidents, or lessons. Add newest entries near the top. Preserve prior entries and failed attempts; mark superseded information instead of deleting it. Treat the document as a preserved, newest-first chronological ledger.
+
+## Validation
+
+Separate observations, assumptions, and conclusions. Confirm dates, versions, errors, and cross-references against available evidence.
 
 ## Delivery
 

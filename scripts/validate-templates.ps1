@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 $validationErrors = [System.Collections.Generic.List[string]]::new()
 $allowedFormats = @('gfm', 'bbcode', 'json', 'xml')
+$requiredHeadings = @('Use when', 'Evidence', 'Update rules', 'Validation', 'Delivery')
 $koFiUrl = 'https://ko-fi.com/I7L525WMJ6'
 $koFiBadgeUrl = 'https://img.shields.io/badge/Support_me_on_Ko--fi-72a4f2?style=for-the-badge&logo=kofi&logoColor=white'
 $gitHubBadgeUrl = 'https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white'
@@ -123,6 +124,64 @@ function Test-FencedExamples {
     }
 }
 
+function Test-RequiredHeadings {
+    param(
+        [string]$Location,
+        [string]$Content
+    )
+
+    foreach ($heading in $requiredHeadings) {
+        $headingPattern = '(?m)^##\s+' + [regex]::Escape($heading) + '\s*$'
+        $headingCount = [regex]::Matches($Content, $headingPattern).Count
+        if ($headingCount -ne 1) {
+            Add-ValidationError `
+                -Location $Location `
+                -Message "must contain exactly one '## $heading' heading; found $headingCount"
+        }
+    }
+}
+
+function Test-BbCodeBalance {
+    param(
+        [string]$Location,
+        [string]$Content
+    )
+
+    $supportedTags = 'h1|h2|b|i|list|url|img|hr'
+    $tagMatches = [regex]::Matches(
+        $Content,
+        "(?i)\[(?<closing>/)?(?<tag>$supportedTags)(?:=[^\]]+)?\]"
+    )
+    $tagStack = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($tagMatch in $tagMatches) {
+        $tag = $tagMatch.Groups['tag'].Value.ToLowerInvariant()
+        if (-not $tagMatch.Groups['closing'].Success) {
+            $tagStack.Add($tag)
+            continue
+        }
+
+        if ($tagStack.Count -eq 0) {
+            Add-ValidationError -Location $Location -Message "unbalanced BBCode: unexpected closing tag '[/$tag]'"
+            return
+        }
+
+        $lastIndex = $tagStack.Count - 1
+        $openTag = $tagStack[$lastIndex]
+        if ($openTag -ne $tag) {
+            Add-ValidationError -Location $Location -Message "unbalanced BBCode: '[/$tag]' closes '[$openTag]'"
+            return
+        }
+
+        $tagStack.RemoveAt($lastIndex)
+    }
+
+    if ($tagStack.Count -gt 0) {
+        $openTags = ($tagStack | ForEach-Object { "[$_]" }) -join ', '
+        Add-ValidationError -Location $Location -Message "unbalanced BBCode: unclosed tag(s) $openTags"
+    }
+}
+
 function Test-RequiredBadges {
     param(
         [string]$Location,
@@ -180,7 +239,7 @@ function Test-SteamSectionOrder {
 
     $actualSections = @(
         foreach ($match in [regex]::Matches($sectionMatch.Groups['body'].Value, '(?m)^\d+\.\s+(?<name>.+?)\s*$')) {
-            $match.Groups['name'].Value.Trim() -replace ', (?:when applicable|required for forks|always last)$', ''
+            $match.Groups['name'].Value.Trim() -replace ', (?:when applicable|required for forks|when present)$', ''
         }
     )
 
@@ -203,8 +262,8 @@ function Test-SteamSectionOrder {
     }
 
     if (
-        $sectionMatch.Groups['body'].Value -notmatch '(?m)^10\. Links, always last\s*$' -or
-        -not $Content.Contains('Links must be the final section.')
+        $sectionMatch.Groups['body'].Value -notmatch '(?m)^10\. Links, when present\s*$' -or
+        -not $Content.Contains('When present, Links must be the final section.')
     ) {
         Add-ValidationError -Location $Location -Message 'missing Links-last rule'
     }
@@ -313,11 +372,18 @@ foreach ($entry in $templateEntries) {
         }
     }
 
+    Test-RequiredHeadings -Location $source -Content $templateContent
+
     if ($source -eq 'Git/readme-template.md') {
         Test-RequiredBadges -Location $source -Content $templateContent -Format 'gfm' -RepositoryUrl $repositoryUrlPlaceholder
     } elseif ($source -eq 'Steam/steam-description-template.md') {
         Test-RequiredBadges -Location $source -Content $templateContent -Format 'bbcode' -RepositoryUrl $repositoryUrlPlaceholder
         Test-SteamSectionOrder -Location $source -Content $templateContent
+        Test-BbCodeBalance -Location $source -Content $templateContent
+
+        if (-not $templateContent.Contains('Links is conditional. Include it only when at least one confirmed and permitted link remains')) {
+            Add-ValidationError -Location $source -Message 'missing conditional Links rule'
+        }
 
         if (-not $templateContent.Contains('### How to Use')) {
             Add-ValidationError -Location $source -Message 'missing required How to Use guidance'
@@ -336,9 +402,23 @@ foreach ($entry in $templateEntries) {
 }
 
 $expectedSources = @($manifestSources | Sort-Object -Unique)
+$discoveredSources = @(
+    foreach ($templateRootName in @('Git', 'Steam')) {
+        $templateRoot = Join-Path $resolvedRoot $templateRootName
+        if (-not (Test-Path -LiteralPath $templateRoot -PathType Container)) {
+            continue
+        }
+
+        Get-ChildItem -LiteralPath $templateRoot -Recurse -File -Filter '*-template.md' |
+            ForEach-Object {
+                [IO.Path]::GetRelativePath($resolvedRoot, $_.FullName).Replace('\', '/')
+            }
+    }
+) | Sort-Object -Unique
 $agentsPath = Join-Path $resolvedRoot 'AGENTS.md'
 $readmePath = Join-Path $resolvedRoot 'README.md'
 
+Compare-TemplateSets -DocumentName 'templates.json/filesystem' -Expected $expectedSources -Actual $discoveredSources
 Compare-TemplateSets -DocumentName 'AGENTS.md' -Expected $expectedSources -Actual (Get-DocumentedTemplatePaths -Path $agentsPath)
 Compare-TemplateSets -DocumentName 'README.md' -Expected $expectedSources -Actual (Get-DocumentedTemplatePaths -Path $readmePath)
 

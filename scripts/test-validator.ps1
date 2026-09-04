@@ -60,7 +60,73 @@ function Test-InvalidFixture {
     }
 }
 
+function Test-ValidFixture {
+    $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ("globaltemplates-validator-{0}" -f [guid]::NewGuid())
+    $null = New-Item -ItemType Directory -Path $fixtureRoot
+
+    try {
+        foreach ($relativePath in $fixtureSourcePaths) {
+            Copy-Item -LiteralPath (Join-Path $repositoryRoot $relativePath) -Destination $fixtureRoot -Recurse
+        }
+
+        $output = (& $validatorPath -RootPath $fixtureRoot *>&1 | Out-String)
+        $exitCodeVariable = Get-Variable -Name LASTEXITCODE -ErrorAction SilentlyContinue
+        $exitCode = if ($null -eq $exitCodeVariable) { 0 } else { $exitCodeVariable.Value }
+
+        if ($exitCode -ne 0) {
+            $failedTests.Add("pristine fixture: validator failed: $output")
+        } else {
+            Write-Host 'Passed: pristine fixture' -ForegroundColor Green
+        }
+    } finally {
+        Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $koFiMarkdown = '[![Support me on Ko-fi](https://img.shields.io/badge/Support_me_on_Ko--fi-72a4f2?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/I7L525WMJ6)'
+
+Test-ValidFixture
+
+foreach ($requiredHeading in @('Use when', 'Evidence', 'Update rules', 'Validation', 'Delivery')) {
+    $missingHeadingMutation = {
+        param($fixtureRoot)
+        Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+            param($content)
+            $content.Replace("## $requiredHeading", "## Removed $requiredHeading")
+        }
+    }.GetNewClosure()
+
+    Test-InvalidFixture `
+        -Name "missing $requiredHeading heading" `
+        -ExpectedError "must contain exactly one '## $requiredHeading' heading; found 0" `
+        -Mutation $missingHeadingMutation
+
+    $duplicateHeadingMutation = {
+        param($fixtureRoot)
+        Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+            param($content)
+            "$content`n`n## $requiredHeading`n"
+        }
+    }.GetNewClosure()
+
+    Test-InvalidFixture `
+        -Name "duplicate $requiredHeading heading" `
+        -ExpectedError "must contain exactly one '## $requiredHeading' heading; found 2" `
+        -Mutation $duplicateHeadingMutation
+}
+
+Test-InvalidFixture -Name 'orphan template file' -ExpectedError "contains unmapped template 'Git/orphan-template.md'" -Mutation {
+    param($fixtureRoot)
+    Set-Content -LiteralPath (Join-Path $fixtureRoot 'Git/orphan-template.md') -Value '# Orphan Template'
+}
+
+Test-InvalidFixture -Name 'missing manifest source' -ExpectedError 'template source is missing: Git/missing-template.md' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'templates.json' -Transform {
+        param($content)
+        $content.Replace('Git/readme-template.md', 'Git/missing-template.md')
+    }
+}
 
 Test-InvalidFixture -Name 'missing Ko-fi badge' -ExpectedError 'missing or malformed linked Ko-fi badge' -Mutation {
     param($fixtureRoot)
@@ -99,6 +165,25 @@ Test-InvalidFixture -Name 'malformed Steam BBCode' -ExpectedError 'missing or ma
     Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
         param($content)
         $content.Replace('logoColor=white[/img][/url]', 'logoColor=white[/img]')
+    }
+}
+
+Test-InvalidFixture -Name 'unbalanced general Steam BBCode' -ExpectedError 'unbalanced BBCode' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace('- Bold: `[b]text[/b]`', '- Bold: `[b]text`')
+    }
+}
+
+Test-InvalidFixture -Name 'contradictory Steam Links rule' -ExpectedError 'missing conditional Links rule' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
+        param($content)
+        $content.Replace(
+            'Links is conditional. Include it only when at least one confirmed and permitted link remains',
+            'Links is required even when no confirmed and permitted link remains'
+        )
     }
 }
 
@@ -174,4 +259,4 @@ if ($failedTests.Count -gt 0) {
     exit 1
 }
 
-Write-Host 'All validator failure-case tests passed.' -ForegroundColor Green
+Write-Host 'All validator tests passed.' -ForegroundColor Green

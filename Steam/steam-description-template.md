@@ -34,9 +34,9 @@ Use this reader-first order and omit only the sections marked as conditional:
 7. Fork History, required for forks
 8. Credits, when applicable
 9. License and Forking Policy
-10. Links, always last
+10. Links, when present
 
-Description, Features, and How to Use must remain the first three content sections. Dependencies must appear after How to Use. Fork History, Credits, and License and Forking Policy must remain below the player-facing sections. Links must be the final section.
+Description, Features, and How to Use must remain the first three content sections. Dependencies must appear after How to Use. Fork History, Credits, and License and Forking Policy must remain below the player-facing sections. When present, Links must be the final section.
 
 ## Section guidance
 
@@ -99,7 +99,7 @@ Do not embed scripts or replace the badges with raw widget code.
 
 ## Applicability
 
-Description, Features, How to Use, License and Forking Policy, and Links are required. Settings and Configuration, Requirements and Dependencies, Compatibility, Load Order, Multiplayer, and Save Safety, and Credits are conditional. Fork History is required only for forks. Put additional reference links inside the final Links section. Do not add empty sections or placeholder links.
+Description, Features, How to Use, and License and Forking Policy are required. Settings and Configuration, Requirements and Dependencies, Compatibility, Load Order, Multiplayer, and Save Safety, Credits, and Links are conditional. Fork History is required only for forks. Links is conditional. Include it only when at least one confirmed and permitted link remains, and put all additional reference links there. Do not add empty sections or placeholder links.
 
 ## Update rules
 

@@ -34,7 +34,7 @@ Use only categories with entries:
 - `Removed` for deleted behavior or files.
 - `Internal` for refactors, dependencies, build tooling, and maintainability work.
 
-## Entry rules
+## Update rules
 
 - Use concise bullets beginning with a clear past-tense verb.
 - Describe impact without requiring the reader to inspect a diff.

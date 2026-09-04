@@ -4,7 +4,7 @@ Reusable, opt-in templates for repository documentation, Steam Workshop descript
 
 ## Purpose
 
-This repository keeps shared templates in one version-controlled location so documentation and metadata rules stay consistent across projects. Templates are inspected or applied only when explicitly requested.
+This repository keeps shared templates in one version-controlled location so documentation and metadata rules stay consistent across projects. Ordinary templates are inspected or applied only when explicitly requested. Project-memory and changelog templates may also activate when their file-specific materiality trigger is satisfied.
 
 The canonical template catalog is [`templates.json`](templates.json). Local paths are resolved from this repository. Cloud environments can use this raw GitHub base URL when local files are unavailable and network access is allowed:
 
@@ -37,6 +37,8 @@ When template-backed work is requested:
 - Write the target file and return a concise change and validation summary.
 - Do not edit this source repository unless template maintenance is explicitly requested.
 
+Automatic project-memory and changelog work follows the triggers in `AGENTS.md`. Only the triggered document is created or updated.
+
 ## Project memory
 
 The project-memory templates have separate responsibilities:
@@ -49,10 +51,18 @@ The project-memory templates have separate responsibilities:
 
 Use only the documents that provide ongoing value. Read headings and the newest relevant sections instead of preloading full history.
 
+Automatic creation or maintenance is limited to:
+
+- `PROJECT.md` after a material change to an iterative project's current state.
+- `HISTORY.md` for durable implementation evidence, root causes, rejected approaches, incidents, or lessons.
+- `DECISIONS.md` when a choice constrains future technical work.
+- `TESTING.md` when repeatable procedures, expectations, or evidence materially change.
+- `CHANGELOG.md` after a completed change with useful user, maintainer, or operational impact.
+
 ## Adding or changing templates
 
 1. Use a descriptive kebab-case filename ending in `-template.md`.
-2. State when the template applies, its target file, required evidence, update rules, validation, and delivery behavior.
+2. Include exactly one `## Use when`, `## Evidence`, `## Update rules`, `## Validation`, and `## Delivery` heading. Name the target file under `Use when`.
 3. Keep project-specific detail only in narrow platform templates.
 4. Update `templates.json`, this catalog, and the mapping in `AGENTS.md`.
 5. Run the repository validator.

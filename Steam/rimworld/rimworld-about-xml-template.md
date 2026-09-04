@@ -37,7 +37,7 @@ Example:
 </ModMetaData>
 ~~~
 
-## Preservation and safety
+## Update rules
 
 For an existing file:
 
