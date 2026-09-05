@@ -2,7 +2,7 @@
 
 ## Use when
 
-Use this template only when the user explicitly requests template-backed changelog work or an approved completed change requires a useful historical entry. Create or update `CHANGELOG.md` in the project root.
+Use this template only when the user explicitly requests template-backed changelog work or a completed change has user, maintainer, or operational impact. Create or update `CHANGELOG.md` in the project root.
 
 ## Evidence
 
@@ -41,6 +41,12 @@ Use only categories with entries:
 - Preserve previous history.
 - Omit mechanical edits, vague summaries, commit hashes, empty categories, and test mentions unless testing itself changed.
 - Split mixed changes across categories when their impacts differ.
+
+## Public copy
+
+Run the installed `unslop` skill with its default crisp-human preset on release headings and entries after drafting and before delivery. Follow its core preservation, phrase, structure, silhouette, readability, and diff gates. Preserve dates, versions, issue references, names, identifiers, and Markdown structure. A blocking result means the changelog is incomplete.
+
+If `unslop` or its validation scripts are unavailable, apply the Writing and copy rules from `AGENTS.md` manually and state in the delivery summary that automated Unslop validation was unavailable.
 
 ## Validation
 

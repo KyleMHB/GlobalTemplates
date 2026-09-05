@@ -73,6 +73,12 @@ Do not claim GPLv3 unless the repository contains the official GPLv3 text or add
 - Use GitHub Flavored Markdown.
 - Do not add placeholder links or empty sections.
 
+## Public copy
+
+Run the installed `unslop` skill with its default crisp-human preset on all reader-facing prose after drafting and before delivery. Follow its core preservation, phrase, structure, silhouette, readability, and diff gates. Preserve facts, names, identifiers, commands, links, code, and Markdown structure. A blocking result means the README is incomplete.
+
+If `unslop` or its validation scripts are unavailable, apply the Writing and copy rules from `AGENTS.md` manually and state in the delivery summary that automated Unslop validation was unavailable.
+
 ## Validation
 
 Confirm that commands match project scripts, relative links resolve, badge destinations use confirmed values, required policy and license text are accurate, and no unsupported claims, scripts, or placeholders remain.

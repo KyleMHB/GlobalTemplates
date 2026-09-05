@@ -87,6 +87,74 @@ $koFiMarkdown = '[![Support me on Ko-fi](https://img.shields.io/badge/Support_me
 
 Test-ValidFixture
 
+Test-InvalidFixture -Name 'missing publicFacing property' -ExpectedError "missing 'publicFacing'" -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'templates.json' -Transform {
+        param($content)
+        [regex]::Replace($content, '(?m)^\s+"publicFacing": true,\r?\n', '', 1)
+    }
+}
+
+Test-InvalidFixture -Name 'invalid publicFacing type' -ExpectedError "'publicFacing' must be a Boolean" -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'templates.json' -Transform {
+        param($content)
+        [regex]::Replace($content, '"publicFacing": true', '"publicFacing": "yes"', 1)
+    }
+}
+
+Test-InvalidFixture -Name 'missing Public copy heading' -ExpectedError "must contain exactly one '## Public copy' heading; found 0" -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+        param($content)
+        $content.Replace('## Public copy', '## Public prose')
+    }
+}
+
+Test-InvalidFixture -Name 'missing Unslop workflow' -ExpectedError 'missing required Unslop workflow' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+        param($content)
+        $content.Replace(
+            'Run the installed `unslop` skill with its default crisp-human preset',
+            'Review the public prose manually'
+        )
+    }
+}
+
+Test-InvalidFixture -Name 'missing Unslop fallback' -ExpectedError 'missing Unslop fallback disclosure' -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+        param($content)
+        $content.Replace(
+            'If `unslop` or its validation scripts are unavailable',
+            'When automated review is unavailable'
+        )
+    }
+}
+
+Test-InvalidFixture -Name 'AGENTS public-copy mapping drift' -ExpectedError "AGENTS.md public copy: missing template mapping 'Git/readme-template.md'" -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'AGENTS.md' -Transform {
+        param($content)
+        $content.Replace(
+            '| `README.md` | `Git/readme-template.md` | Explicit template-backed request | Yes |',
+            '| `README.md` | `Git/readme-template.md` | Explicit template-backed request | No |'
+        )
+    }
+}
+
+Test-InvalidFixture -Name 'README public-copy mapping drift' -ExpectedError "README.md public copy: missing template mapping 'Git/readme-template.md'" -Mutation {
+    param($fixtureRoot)
+    Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'README.md' -Transform {
+        param($content)
+        $content.Replace(
+            '| `README.md` | `Git/readme-template.md` | GFM | Yes |',
+            '| `README.md` | `Git/readme-template.md` | GFM | No |'
+        )
+    }
+}
+
 foreach ($requiredHeading in @('Use when', 'Evidence', 'Update rules', 'Validation', 'Delivery')) {
     $missingHeadingMutation = {
         param($fixtureRoot)

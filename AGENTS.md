@@ -28,17 +28,19 @@ Use `E:\Coding\Templates` locally, with `https://github.com/KyleMHB/GlobalTempla
 
 Ordinary templates are explicit opt-in. Project-memory and changelog templates may be inspected and applied automatically only when the matching trigger below is satisfied.
 
-| Target | Template | Activation |
-| --- | --- | --- |
-| `README.md` | `Git/readme-template.md` | Explicit template-backed request |
-| `CHANGELOG.md` | `Git/change-log-template.md` | Explicit request, or a completed change with useful user, maintainer, or operational impact |
-| `PROJECT.md` | `Git/project-template.md` | Explicit request, or a material change to an iterative project's current state |
-| `HISTORY.md` | `Git/history-template.md` | Explicit request, or durable implementation evidence, root causes, rejected approaches, incidents, or lessons |
-| `DECISIONS.md` | `Git/decisions-template.md` | Explicit request, or a choice that constrains future technical work |
-| `TESTING.md` | `Git/testing-template.md` | Explicit request, or a material change to repeatable procedures, expectations, or evidence |
-| Steam Workshop description | `Steam/steam-description-template.md` | Explicit template-backed request |
-| Wayward `mod.json` | `Steam/wayward/wayward-mod-json-template.md` | Explicit template-backed request |
-| RimWorld `About/About.xml` | `Steam/rimworld/rimworld-about-xml-template.md` | Explicit template-backed request |
+| Target | Template | Activation | Public copy |
+| --- | --- | --- | --- |
+| `README.md` | `Git/readme-template.md` | Explicit template-backed request | Yes |
+| `CHANGELOG.md` | `Git/change-log-template.md` | Explicit request, or a completed change with useful user, maintainer, or operational impact | Yes |
+| `PROJECT.md` | `Git/project-template.md` | Explicit request, or a material change to an iterative project's current state | No |
+| `HISTORY.md` | `Git/history-template.md` | Explicit request, or durable implementation evidence, root causes, rejected approaches, incidents, or lessons | No |
+| `DECISIONS.md` | `Git/decisions-template.md` | Explicit request, or a choice that constrains future technical work | No |
+| `TESTING.md` | `Git/testing-template.md` | Explicit request, or a material change to repeatable procedures, expectations, or evidence | No |
+| `steam-description.md` | `Steam/steam-description-template.md` | Explicit template-backed request | Yes |
+| `mod.json` | `Steam/wayward/wayward-mod-json-template.md` | Explicit template-backed request | Yes |
+| `About/About.xml` | `Steam/rimworld/rimworld-about-xml-template.md` | Explicit template-backed request | Yes |
+
+For each template marked as public copy, run the installed `unslop` skill with its default crisp-human preset on reader-facing prose before delivery. Follow its core preservation and validation gates; a blocking result means the document is incomplete. Preserve facts, names, identifiers, commands, links, code, markup, and data structure. In `mod.json`, process only `name` and `description`; in `About/About.xml`, process only `<name>` and `<description>`. If `unslop` or its validation scripts are unavailable, apply the Writing and copy rules manually and state in the delivery summary that automated Unslop validation was unavailable.
 
 Create or update only the triggered documents. Keep facts, assumptions, and pending validation distinct. Preserve prior history, rejected approaches, stable decisions, and useful project-specific content. Never record secrets, credentials, private tokens, or sensitive personal data.
 

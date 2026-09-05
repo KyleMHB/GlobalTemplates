@@ -13,6 +13,9 @@ $koFiUrl = 'https://ko-fi.com/I7L525WMJ6'
 $koFiBadgeUrl = 'https://img.shields.io/badge/Support_me_on_Ko--fi-72a4f2?style=for-the-badge&logo=kofi&logoColor=white'
 $gitHubBadgeUrl = 'https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white'
 $repositoryUrlPlaceholder = '{repository-url}'
+$publicCopyHeading = 'Public copy'
+$unslopRequirement = 'Run the installed `unslop` skill with its default crisp-human preset'
+$unslopFallback = 'If `unslop` or its validation scripts are unavailable'
 $bannedPatterns = [ordered]@{
     'System Instructions' = 'stale system-prompt heading'
     'CRITICAL' = 'stale urgency marker'
@@ -49,6 +52,27 @@ function Get-DocumentedTemplatePaths {
     return @(
         $matches |
             ForEach-Object { $_.Value.Replace('\', '/') } |
+            Sort-Object -Unique
+    )
+}
+
+function Get-DocumentedPublicTemplatePaths {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Add-ValidationError -Location $Path -Message 'mapping document is missing'
+        return @()
+    }
+
+    $content = Get-Content -Raw -LiteralPath $Path
+    $matches = [regex]::Matches(
+        $content,
+        '(?m)^\|\s*`[^`]+`\s*\|\s*`(?<template>(?:Git|Steam)/[^`]+-template\.md)`\s*\|.*\|\s*Yes\s*\|\s*$'
+    )
+
+    return @(
+        $matches |
+            ForEach-Object { $_.Groups['template'].Value.Replace('\', '/') } |
             Sort-Object -Unique
     )
 }
@@ -138,6 +162,29 @@ function Test-RequiredHeadings {
                 -Location $Location `
                 -Message "must contain exactly one '## $heading' heading; found $headingCount"
         }
+    }
+}
+
+function Test-PublicCopyContract {
+    param(
+        [string]$Location,
+        [string]$Content
+    )
+
+    $headingPattern = '(?m)^##\s+' + [regex]::Escape($publicCopyHeading) + '\s*$'
+    $headingCount = [regex]::Matches($Content, $headingPattern).Count
+    if ($headingCount -ne 1) {
+        Add-ValidationError `
+            -Location $Location `
+            -Message "must contain exactly one '## $publicCopyHeading' heading; found $headingCount"
+    }
+
+    if (-not $Content.Contains($unslopRequirement)) {
+        Add-ValidationError -Location $Location -Message 'missing required Unslop workflow'
+    }
+
+    if (-not $Content.Contains($unslopFallback)) {
+        Add-ValidationError -Location $Location -Message 'missing Unslop fallback disclosure'
     }
 }
 
@@ -290,8 +337,8 @@ try {
 }
 
 $schemaVersionProperty = $manifest.PSObject.Properties['schemaVersion']
-if ($null -eq $schemaVersionProperty -or $schemaVersionProperty.Value -ne 1) {
-    Add-ValidationError -Location 'templates.json' -Message 'schemaVersion must be 1'
+if ($null -eq $schemaVersionProperty -or $schemaVersionProperty.Value -ne 2) {
+    Add-ValidationError -Location 'templates.json' -Message 'schemaVersion must be 2'
 }
 
 $templatesProperty = $manifest.PSObject.Properties['templates']
@@ -313,7 +360,7 @@ foreach ($entry in $templateEntries) {
     }
     $missingRequiredProperty = $false
 
-    foreach ($propertyName in @('id', 'template', 'target', 'format', 'appliesWhen')) {
+    foreach ($propertyName in @('id', 'template', 'target', 'format', 'publicFacing', 'appliesWhen')) {
         $property = $entry.PSObject.Properties[$propertyName]
         if ($null -eq $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
             Add-ValidationError -Location "templates.json [$entryId]" -Message "missing '$propertyName'"
@@ -323,6 +370,14 @@ foreach ($entry in $templateEntries) {
 
     if ($missingRequiredProperty) {
         continue
+    }
+
+    $publicFacingProperty = $entry.PSObject.Properties['publicFacing']
+    $isPublicFacing = $false
+    if ($publicFacingProperty.Value -isnot [bool]) {
+        Add-ValidationError -Location "templates.json [$entryId]" -Message "'publicFacing' must be a Boolean"
+    } else {
+        $isPublicFacing = $publicFacingProperty.Value
     }
 
     if ($entryId -notmatch '^[a-z0-9]+(?:-[a-z0-9]+)*$') {
@@ -374,6 +429,10 @@ foreach ($entry in $templateEntries) {
 
     Test-RequiredHeadings -Location $source -Content $templateContent
 
+    if ($isPublicFacing) {
+        Test-PublicCopyContract -Location $source -Content $templateContent
+    }
+
     if ($source -eq 'Git/readme-template.md') {
         Test-RequiredBadges -Location $source -Content $templateContent -Format 'gfm' -RepositoryUrl $repositoryUrlPlaceholder
     } elseif ($source -eq 'Steam/steam-description-template.md') {
@@ -402,6 +461,15 @@ foreach ($entry in $templateEntries) {
 }
 
 $expectedSources = @($manifestSources | Sort-Object -Unique)
+$expectedPublicSources = @(
+    $templateEntries |
+        Where-Object {
+            $property = $_.PSObject.Properties['publicFacing']
+            $null -ne $property -and $property.Value -is [bool] -and $property.Value
+        } |
+        ForEach-Object { ([string]$_.template).Replace('\', '/') } |
+        Sort-Object -Unique
+)
 $discoveredSources = @(
     foreach ($templateRootName in @('Git', 'Steam')) {
         $templateRoot = Join-Path $resolvedRoot $templateRootName
@@ -421,6 +489,8 @@ $readmePath = Join-Path $resolvedRoot 'README.md'
 Compare-TemplateSets -DocumentName 'templates.json/filesystem' -Expected $expectedSources -Actual $discoveredSources
 Compare-TemplateSets -DocumentName 'AGENTS.md' -Expected $expectedSources -Actual (Get-DocumentedTemplatePaths -Path $agentsPath)
 Compare-TemplateSets -DocumentName 'README.md' -Expected $expectedSources -Actual (Get-DocumentedTemplatePaths -Path $readmePath)
+Compare-TemplateSets -DocumentName 'AGENTS.md public copy' -Expected $expectedPublicSources -Actual (Get-DocumentedPublicTemplatePaths -Path $agentsPath)
+Compare-TemplateSets -DocumentName 'README.md public copy' -Expected $expectedPublicSources -Actual (Get-DocumentedPublicTemplatePaths -Path $readmePath)
 
 Test-RepositoryMarkdownLinks -Path $readmePath
 Test-RepositoryMarkdownLinks -Path $agentsPath

@@ -60,6 +60,12 @@ Use `unloadable: true` only with evidence that removal is save-safe. Do not mark
 
 Dependencies contain exact Steam Workshop `publishedFileId` strings. Use JSON booleans and arrays with their correct types.
 
+## Public copy
+
+Run the installed `unslop` skill with its default crisp-human preset on the `name` and `description` values only after drafting and before delivery. Follow its core preservation, phrase, structure, silhouette, readability, and diff gates. Reinsert the validated values without changing JSON structure, types, escaping, or any other field. A blocking result means `mod.json` is incomplete.
+
+If `unslop` or its validation scripts are unavailable, apply the Writing and copy rules from `AGENTS.md` manually and state in the delivery summary that automated Unslop validation was unavailable.
+
 ## Version and description
 
 Bump `version` only for completed behavior, compatibility, or feature changes and keep it synchronized with other project version fields. Do not bump for documentation, formatting, exploration, failed work, or mechanical edits. Ask when the correct bump is ambiguous.

@@ -74,6 +74,12 @@ Dependency example:
 </modDependencies>
 ~~~
 
+## Public copy
+
+Run the installed `unslop` skill with its default crisp-human preset on the `<name>` and `<description>` values only after drafting and before delivery. Follow its core preservation, phrase, structure, silhouette, readability, and diff gates. Reinsert the validated values without changing XML structure, escaping, or any other element. A blocking result means `About/About.xml` is incomplete.
+
+If `unslop` or its validation scripts are unavailable, apply the Writing and copy rules from `AGENTS.md` manually and state in the delivery summary that automated Unslop validation was unavailable.
+
 ## Version and description
 
 Update `<modVersion>` only when the project uses it and a completed behavior, compatibility, or feature change requires a bump. Preserve the existing version format and synchronize relevant project fields. Do not bump for documentation, formatting, exploration, failed work, or mechanical edits.

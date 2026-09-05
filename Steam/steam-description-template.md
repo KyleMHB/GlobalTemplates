@@ -42,7 +42,7 @@ Description, Features, and How to Use must remain the first three content sectio
 
 ### Description
 
-Use a clear hook and concise summary of what the mod changes and why it is useful.
+State what the mod changes and how that affects the player. Keep the summary concise and evidence-based.
 
 ### Features
 
@@ -54,7 +54,7 @@ Explain how players enable, configure, and use the mod in-game. Include relevant
 
 ### Settings and Configuration
 
-Include only when players can configure meaningful behavior. Explain where settings are found and what the important options change.
+Include this section only when settings change player-visible behavior. State where players find each documented setting and what it changes.
 
 ### Requirements and Dependencies
 
@@ -62,7 +62,7 @@ Include only when the mod requires a game expansion, framework, library, compani
 
 ### Compatibility, Load Order, Multiplayer, and Save Safety
 
-Include only confirmed and useful compatibility information. Cover required load order, known conflicts, multiplayer behavior, and whether the mod is safe to add or remove from existing saves when applicable.
+Include only details confirmed by project evidence. Cover any confirmed load-order requirements, conflicts, multiplayer behavior, and effects of adding or removing the mod from an existing save.
 
 ### Fork History
 
@@ -70,7 +70,7 @@ For a fork, name the original mod and author, explain why the fork exists, and d
 
 ### Credits
 
-Include confirmed authors, contributors, asset creators, and upstream projects when credit is useful. Keep detailed provenance below the player-facing sections.
+When credits apply, name only confirmed authors, contributors, asset creators, and upstream projects. Keep detailed provenance below the player-facing sections.
 
 ### License and Forking Policy
 
@@ -104,6 +104,12 @@ Description, Features, How to Use, and License and Forking Policy are required. 
 ## Update rules
 
 Update an existing `steam-description.md` without discarding useful content. Preserve confirmed links, credits, compatibility notes, and formatting. Do not copy README or changelog text wholesale.
+
+## Public copy
+
+Run the installed `unslop` skill with its default crisp-human preset on all reader-facing prose after drafting and before delivery. Follow its core preservation, phrase, structure, silhouette, readability, and diff gates. Preserve facts, names, identifiers, links, image URLs, and BBCode structure. A blocking result means the Steam description is incomplete.
+
+If `unslop` or its validation scripts are unavailable, apply the Writing and copy rules from `AGENTS.md` manually and state in the delivery summary that automated Unslop validation was unavailable.
 
 ## Validation
 
