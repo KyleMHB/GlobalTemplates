@@ -18,30 +18,6 @@
       "appliesWhen": "Explicit template-backed changelog request"
     },
     {
-      "id": "project-overview",
-      "template": "Git/project-template.md",
-      "target": "PROJECT.md",
-      "format": "gfm",
-      "publicFacing": false,
-      "appliesWhen": "Explicit template-backed project overview request"
-    },
-    {
-      "id": "engineering-history",
-      "template": "Git/history-template.md",
-      "target": "HISTORY.md",
-      "format": "gfm",
-      "publicFacing": false,
-      "appliesWhen": "Explicit template-backed engineering history request"
-    },
-    {
-      "id": "technical-decisions",
-      "template": "Git/decisions-template.md",
-      "target": "DECISIONS.md",
-      "format": "gfm",
-      "publicFacing": false,
-      "appliesWhen": "Explicit template-backed decision log request"
-    },
-    {
       "id": "testing-guide",
       "template": "Git/testing-template.md",
       "target": "TESTING.md",

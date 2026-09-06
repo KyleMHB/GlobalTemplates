@@ -307,7 +307,7 @@ Test-InvalidFixture -Name 'Links before license' -ExpectedError 'reader-first St
     param($fixtureRoot)
     Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Steam/steam-description-template.md' -Transform {
         param($content)
-        $content.Replace('9. License and Forking Policy', '9. TEMP SECTION').Replace('10. Links, always last', '10. License and Forking Policy').Replace('9. TEMP SECTION', '9. Links, always last')
+        $content.Replace('9. License', '9. TEMP SECTION').Replace('10. Links, always last', '10. License').Replace('9. TEMP SECTION', '9. Links, always last')
     }
 }
 

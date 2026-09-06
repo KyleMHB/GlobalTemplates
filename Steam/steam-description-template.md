@@ -33,10 +33,10 @@ Use this reader-first order and omit only the sections marked as conditional:
 6. Compatibility, Load Order, Multiplayer, and Save Safety, when applicable
 7. Fork History, required for forks
 8. Credits, when applicable
-9. License and Forking Policy
+9. License
 10. Links, when present
 
-Description, Features, and How to Use must remain the first three content sections. Dependencies must appear after How to Use. Fork History, Credits, and License and Forking Policy must remain below the player-facing sections. When present, Links must be the final section.
+Description, Features, and How to Use must remain the first three content sections. Dependencies must appear after How to Use. Fork History, Credits, and License must remain below the player-facing sections. When present, Links must be the final section.
 
 ## Section guidance
 
@@ -72,17 +72,11 @@ For a fork, name the original mod and author, explain why the fork exists, and d
 
 When credits apply, name only confirmed authors, contributors, asset creators, and upstream projects. Keep detailed provenance below the player-facing sections.
 
-### License and Forking Policy
+### License
 
 For a fork, state that it inherits the original mod's license. Do not relicense it without authorization from the relevant copyright holders.
 
 For an original GPLv3 mod, state that commercial use is allowed and distributed modified versions must remain under GPLv3 with corresponding source available as required by the license.
-
-Include this non-binding project policy:
-
-> If your fork primarily consists of bug fixes or feature additions that align with the core vision of this mod, I reserve the right to request that your changes be submitted as a Pull Request to my existing codebase rather than being published as a completely separate standalone release.
-
-Make clear that this is a request, not an additional GPLv3 restriction.
 
 ### Links
 
@@ -99,7 +93,7 @@ Do not embed scripts or replace the badges with raw widget code.
 
 ## Applicability
 
-Description, Features, How to Use, and License and Forking Policy are required. Settings and Configuration, Requirements and Dependencies, Compatibility, Load Order, Multiplayer, and Save Safety, Credits, and Links are conditional. Fork History is required only for forks. Links is conditional. Include it only when at least one confirmed and permitted link remains, and put all additional reference links there. Do not add empty sections or placeholder links.
+Description, Features, How to Use, and License are required. Settings and Configuration, Requirements and Dependencies, Compatibility, Load Order, Multiplayer, and Save Safety, Credits, and Links are conditional. Fork History is required only for forks. Links is conditional. Include it only when at least one confirmed and permitted link remains, and put all additional reference links there. Do not add empty sections or placeholder links.
 
 ## Update rules
 

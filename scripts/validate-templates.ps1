@@ -280,7 +280,7 @@ function Test-SteamSectionOrder {
         'Compatibility, Load Order, Multiplayer, and Save Safety',
         'Fork History',
         'Credits',
-        'License and Forking Policy',
+        'License',
         'Links'
     )
 

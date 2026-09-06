@@ -4,7 +4,7 @@ Reusable, opt-in templates for repository documentation, Steam Workshop descript
 
 ## Purpose
 
-This repository keeps shared templates in one version-controlled location so documentation and metadata rules stay consistent across projects. Ordinary templates are inspected or applied only when explicitly requested. Project-memory and changelog templates may also activate when their file-specific materiality trigger is satisfied.
+This repository keeps shared templates in one version-controlled location so documentation and metadata rules stay consistent across projects. Templates are inspected or applied only when explicitly requested, except for eligible changelog updates and material updates to an existing testing guide.
 
 The canonical template catalog is [`templates.json`](templates.json). Local paths are resolved from this repository. Cloud environments can use this raw GitHub base URL when local files are unavailable and network access is allowed:
 
@@ -18,9 +18,6 @@ https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/
 | --- | --- | --- | --- |
 | `README.md` | `Git/readme-template.md` | GFM | Yes |
 | `CHANGELOG.md` | `Git/change-log-template.md` | GFM | Yes |
-| `PROJECT.md` | `Git/project-template.md` | GFM | No |
-| `HISTORY.md` | `Git/history-template.md` | GFM | No |
-| `DECISIONS.md` | `Git/decisions-template.md` | GFM | No |
 | `TESTING.md` | `Git/testing-template.md` | GFM | No |
 | `steam-description.md` | `Steam/steam-description-template.md` | BBCode | Yes |
 | `mod.json` | `Steam/wayward/wayward-mod-json-template.md` | JSON | Yes |
@@ -39,27 +36,7 @@ When template-backed work is requested:
 
 Templates marked as public copy run their reader-facing prose through the installed `unslop` skill and its core validation gates before delivery. For `mod.json`, this covers `name` and `description`; for `About/About.xml`, it covers `<name>` and `<description>`. When the skill or its scripts are unavailable, the agent applies the repository writing rules manually and reports that automated Unslop validation was unavailable.
 
-Automatic project-memory and changelog work follows the triggers in `AGENTS.md`. Only the triggered document is created or updated.
-
-## Project memory
-
-The project-memory templates have separate responsibilities:
-
-- `PROJECT.md`: current scope, architecture, validated state, risks, and next steps.
-- `HISTORY.md`: chronological engineering evidence, corrections, and lessons.
-- `DECISIONS.md`: stable technical decisions and consequences.
-- `TESTING.md`: repeatable procedures and observed validation.
-- `CHANGELOG.md`: concise release-oriented history.
-
-Use only the documents that provide ongoing value. Read headings and the newest relevant sections instead of preloading full history.
-
-Automatic creation or maintenance is limited to:
-
-- `PROJECT.md` after a material change to an iterative project's current state.
-- `HISTORY.md` for durable implementation evidence, root causes, rejected approaches, incidents, or lessons.
-- `DECISIONS.md` when a choice constrains future technical work.
-- `TESTING.md` when repeatable procedures, expectations, or evidence materially change.
-- `CHANGELOG.md` after a completed change with useful user, maintainer, or operational impact.
+Automatic work follows the triggers in `AGENTS.md`. A `CHANGELOG.md` may be created or updated after a completed change with useful user, maintainer, or operational impact. An existing `TESTING.md` may be updated when its repeatable procedures, expectations, or evidence materially change; create it only on explicit request.
 
 ## Adding or changing templates
 
@@ -73,13 +50,9 @@ Automatic creation or maintenance is limited to:
 pwsh -NoProfile -File scripts/validate-templates.ps1
 ~~~
 
-## Contributing and Forking Policy
+## Contributing
 
 Contributions, issues, and feature requests are welcome.
-
-**Forking Policy:** If your fork primarily consists of bug fixes or feature additions that align with the core vision of this repository, I reserve the right to request that your changes be submitted as a pull request to this existing codebase rather than being published as a separate standalone release.
-
-This is a project request, not an additional GPLv3 restriction.
 
 ## Links
 

@@ -2,6 +2,15 @@
 
 Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings.
 
+## 2026-09-06
+
+### Changed
+
+- Reduced the catalog to README, changelog, testing, Steam description, Wayward metadata, and RimWorld metadata templates.
+- Moved the `setup-matt-pocock-skills` policy into the installed skill, including its local issue, triage, domain-layout, instruction-file, conflict, and validation defaults.
+- Clarified that changelog updates may be created automatically when they are materially useful, while new testing guides require an explicit request and existing guides may receive material updates.
+- Removed the personal forking request from generated README and Steam Workshop copy.
+
 ## 2026-09-05
 
 ### Changed
