@@ -44,6 +44,16 @@ Description, Features, and How to Use must remain the first three content sectio
 
 State what the mod changes and how that affects the player. Keep the summary concise and evidence-based.
 
+After the summary, include one small version declaration within the Description section:
+
+```text
+[b]Mod version:[/b] {mod-version}
+```
+
+Replace `{mod-version}` with the mod release version from authoritative project release metadata for the artifact being published, such as `mod.json.version` for Wayward. Preserve the complete version, including any prerelease suffix. Keep supported game versions separately labeled.
+
+Refresh this declaration whenever the release version changes, and keep exactly one `Mod version` line. If the mod version cannot be established from authoritative evidence, omit the declaration and report the missing evidence; never leave a placeholder or infer the mod version from a game version or update date.
+
 ### Features
 
 Use a scannable BBCode list of confirmed player-facing features.
@@ -108,6 +118,8 @@ If `unslop` or its validation scripts are unavailable, apply the Writing and cop
 ## Validation
 
 Confirm BBCode tags are balanced, Markdown formatting is absent, required sections are present, the reader-first order is preserved, How to Use gives actionable instructions, dependencies follow How to Use, fork history explains both purpose and differences when applicable, Links is last, badge destinations use confirmed values, links are confirmed, and compatibility and license claims match project evidence.
+
+When a mod release version is available, confirm that exactly one Mod version declaration appears in Description, its value matches the authoritative release metadata, and no version placeholder remains. Otherwise, confirm that the delivery reports the missing version evidence.
 
 ## Delivery
 
