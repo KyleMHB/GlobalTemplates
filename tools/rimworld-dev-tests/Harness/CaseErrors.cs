@@ -10,9 +10,11 @@ public static class CaseErrors
 {
     private const int Kept = 500, PerCase = 5, LineLength = 300;
     private static readonly List<(long seq, string text)> Logged = new();
-    private static long next;
+    private static long next, naming;
 
     public static long Mark { get { lock (Logged) return next; } }
+    // Count so far of errors naming the mod under test (HarnessSettings.ErrorMarker).
+    public static long ModMark { get { lock (Logged) return naming; } }
 
     // Harmony prefix on Verse.Log.Error(string), bound by position. Never blocks the original.
     public static void Record(string __0)
@@ -22,16 +24,27 @@ public static class CaseErrors
         lock (Logged)
         {
             Logged.Add((++next, __0 ?? ""));
+            if (__0 != null && __0.Contains(Harness.Settings.ErrorMarker)) naming++;
             if (Logged.Count > Kept) Logged.RemoveRange(0, Logged.Count - Kept);
         }
     }
 
-    // Errors in a case's window: since the batch's previous case finished, or since the case began if earlier.
+    // Where a case's window starts: since the batch's previous case finished, or since the case began if earlier.
     // A record read back from progress.json has no mark of its own.
+    private static long WindowMark(CaseRecord c, long windowStart) =>
+        c.ErrorMark < 0 ? windowStart : windowStart < 0 ? c.ErrorMark : Math.Min(c.ErrorMark, windowStart);
+
     public static IEnumerable<string> For(CaseRecord c, long windowStart = -1)
     {
-        long mark = c.ErrorMark < 0 ? windowStart : windowStart < 0 ? c.ErrorMark : Math.Min(c.ErrorMark, windowStart);
+        long mark = WindowMark(c, windowStart);
         return mark < 0 ? Enumerable.Empty<string>() : Since(mark).ToList();
+    }
+
+    // Every error in the window, including repeats and those beyond the lines kept.
+    public static int CountFor(CaseRecord c, long windowStart = -1)
+    {
+        long mark = WindowMark(c, windowStart);
+        return mark < 0 ? 0 : (int)(Mark - mark);
     }
 
     // Distinct first lines of errors logged after the mark, capped, with a count of the rest.

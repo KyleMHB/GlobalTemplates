@@ -6,8 +6,10 @@ using System.Reflection;
 namespace RimWorldDevTests;
 
 // The only thing a mod writes besides its batches: one subclass of HarnessSettings in its DevTests assembly.
-// Harness.Settings finds it by reflection, so the mod can use its own namespace. Names derived here must match the
-// mod's devtests.json for the shared launcher (rimtest.py): argPrefix, evidenceFolder, runnerSavePrefix, runtime folders.
+// Harness.Settings finds it by reflection, so the mod can use its own namespace. These must match the mod's devtests.json
+// for the shared launcher (rimtest.py): ArgPrefix (argPrefix), EvidenceFolder (evidenceFolder), RuntimeFolders
+// (runtimeFolders), RuntimeFiles (runtimeFiles) and ExtraRuntimeExclusions (runtimeExclusions). The launcher names a
+// runtime entry that disagrees after a run.
 public abstract class HarnessSettings
 {
     // Shown in summaries, the progress panel, messages and the developer-menu category.
@@ -28,9 +30,13 @@ public abstract class HarnessSettings
     public virtual string EvidenceFolder => new string(DisplayName.Where(char.IsLetterOrDigit).ToArray()) + "Tests";
     public virtual string HarmonyId => PackageId + ".devtests";
     public virtual string ColonyName => DisplayName + " Test Colony";
+    // Not read: the developer-menu category is fixed at compile time ("Developer tests"). Kept so existing overrides compile.
     public virtual string MenuCategory => DisplayName + " tests";
-    // Errors containing this text are startup errors of the mod under test (startup-check batches read them).
+    // Errors containing this text count as the mod's own: startup-check batches read them, and every run reports how many
+    // were logged. A short or common name matches unrelated errors; override it with something distinctive.
     public virtual string ErrorMarker => DisplayName;
+    // When true, a run that logged any error containing ErrorMarker does not pass overall, even if every case passed.
+    public virtual bool FailOnModErrors => false;
     // Folders and files deployment copies; the launcher hashes the same set. Missing entries are ignored.
     public virtual string[] RuntimeFolders => new[] { "About", "Assemblies", "Defs", "Patches", "Languages", "Textures", "Sounds" };
     public virtual string[] RuntimeFiles => new[] { "LoadFolders.xml" };
@@ -62,7 +68,8 @@ public static class Harness
         var types = Verse.GenTypes.AllTypes
             .Where(t => typeof(HarnessSettings).IsAssignableFrom(t) && !t.IsAbstract).ToList();
         if (types.Count != 1)
-            throw new InvalidOperationException($"RimWorldDevTests needs exactly one loaded HarnessSettings subclass; found {types.Count}");
+            throw new InvalidOperationException($"RimWorldDevTests needs exactly one loaded HarnessSettings subclass; found {types.Count}" +
+                (types.Count > 1 ? " (" + string.Join(", ", types.Select(t => t.FullName)) + "); another mod's developer DLLs are still installed, remove them with its remove-dev command" : ""));
         return (HarnessSettings)Activator.CreateInstance(types[0]);
     }
 }
@@ -80,7 +87,7 @@ public static class Batches
     }
 
     private static Dictionary<string, Batch> Create() =>
-        new Batch[] { new DiagnosticBatch(), new DiagnosticCancelBatch(), new DiagnosticStallBatch() }
+        new Batch[] { new DiagnosticBatch(), new DiagnosticAutosaveBatch(), new DiagnosticCancelBatch(), new DiagnosticStallBatch() }
             .Concat(Harness.Settings.CreateBatches()).ToDictionary(b => b.Id);
 
     public static IEnumerable<string> RunAll => new[] { "diagnostic" }.Concat(Harness.Settings.RunAll);

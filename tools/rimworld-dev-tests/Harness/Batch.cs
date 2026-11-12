@@ -55,7 +55,7 @@ public abstract class Wait
     public static Wait Ticks(int ticks, Action everyTick = null) => new TickWait { Remaining = ticks, EveryTick = everyTick };
 
     // Ticks until the condition holds or the tick limit passes; ctx.TimedOut tells which.
-    public static Wait Until(Func<bool> condition, int maxTicks, Action everyTick = null) =>
+    public static UntilWait Until(Func<bool> condition, int maxTicks, Action everyTick = null) =>
         new UntilWait { Condition = condition, Remaining = maxTicks, EveryTick = everyTick };
 
     // Lets frame-driven state (sky glow, glow grid) catch up without advancing the simulation.
@@ -72,7 +72,9 @@ public abstract class Wait
 }
 
 public class TickWait : Wait { public int Remaining; }
-public class UntilWait : Wait { public Func<bool> Condition; public int Remaining; }
+// TimedOut is this wait's own result. ctx.TimedOut holds the latest Until's result and is not cleared by other waits, so keep
+// the wait in a variable when another wait runs before the check.
+public class UntilWait : Wait { public Func<bool> Condition; public int Remaining; public bool TimedOut { get; internal set; } }
 public class FrameWait : Wait { public int Remaining; }
 public class ReloadWait : Wait { }
 public class RecordingWait : Wait { }
@@ -246,7 +248,7 @@ public class CaseScope
         if (record.Result != Results.Running) throw new InvalidOperationException("Case already finished: " + record.Id);
         record.Result = result;
         record.Reason = reason;
-        record.CaptureFailure(CaseErrors.For(record, ctx.ErrorMark));
+        record.CaptureOutcome(ctx.ErrorMark);
         ctx.ErrorMark = CaseErrors.Mark;
         record.Ticks = Find.TickManager.TicksGame - record.StartTick;
         RunTimeline.Event("case-end", record.Batch, record.Id, result);

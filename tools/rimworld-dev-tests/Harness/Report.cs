@@ -37,6 +37,8 @@ public class RunRequest
     public string SaveAs;
     public bool Record;
     public bool HideUI = true;
+    // When the launcher will kill the game (UTC milliseconds), less a margin; 0 when no launcher set a limit.
+    public long DeadlineUtcMs;
 }
 
 public class CaseRecord
@@ -56,13 +58,16 @@ public class CaseRecord
     public List<string> Setup = new(), Evidence = new();
     public int Ticks;
     public int StartTick;
+    // Errors the game logged in this case's window, whatever its result: a passing case can still have run over errors.
+    public int LoggedErrors;
 
-    // A failing case records the errors logged in its window (CaseErrors.For) and the state of each registered subject.
-    // The reason is already in Reason.
-    internal void CaptureFailure(IEnumerable<string> loggedErrors)
+    // Every finished case records the errors logged in its window (CaseErrors); a failing one adds the state of each
+    // registered subject. The reason is already in Reason.
+    internal void CaptureOutcome(long windowStart = -1)
     {
+        LoggedErrors = CaseErrors.CountFor(this, windowStart);
+        Evidence.AddRange(CaseErrors.For(this, windowStart));
         if (!(Result is Results.Fail or Results.Error || Result == Results.Skip && CoverageReason == CoverageReasons.SetupFailed)) return;
-        Evidence.AddRange(loggedErrors);
         foreach (var state in SubjectStates.Values) Evidence.Add(state());
     }
 }
@@ -86,6 +91,10 @@ public class Progress
     public int BatchIndex, Segment;
     public string Stage = "";
     public string CurrentSave;
+    // Errors logged during the run, and those naming the mod under test (HarnessSettings.ErrorMarker). Counted at each
+    // batch end; a run recovered after its process died keeps the last count written.
+    public int LoggedErrors, ModErrors;
+    public bool FailOnModErrors;
     public Dictionary<string, string> Memo = new();
     public Dictionary<string, object> Environment = new();
     public List<BatchRecord> BatchRecords = new();
@@ -118,7 +127,7 @@ public class Progress
     public bool OverallPass =>
         Status == RunStatus.Complete && !PendingCases().Any() && !PendingBatches().Any() &&
         BatchRecords.All(b => b.Status == RunStatus.Complete) &&
-        CoverageComplete &&
+        CoverageComplete && !(FailOnModErrors && ModErrors > 0) &&
         Cases.All(c => c.Diagnostic ? c.Result == c.ExpectedResult : c.Result is Results.Pass or Results.Skip);
 
     public string ReportJson()
@@ -134,6 +143,7 @@ public class Progress
         {
             ["schema"] = 2, ["runId"] = RunId, ["status"] = Status, ["reason"] = Reason, ["overallPass"] = OverallPass,
             ["assertionsPass"] = AssertionsPass, ["coverageComplete"] = CoverageComplete,
+            ["loggedErrors"] = LoggedErrors, ["modErrors"] = ModErrors, ["failOnModErrors"] = FailOnModErrors,
             ["coverageGaps"] = gameplay.Where(c => c.Result == Results.Skip).GroupBy(c => c.CoverageReason ?? CoverageReasons.Unclassified).ToDictionary(g => g.Key, g => g.Count()),
             ["startedUtc"] = StartedUtc, ["finishedUtc"] = FinishedUtc, ["request"] = Request,
             ["game"] = Environment.GetValueOrDefault("game"), ["modBuild"] = Environment.GetValueOrDefault("modBuild"),
@@ -167,10 +177,18 @@ public class Progress
             text.AppendLine($"Diagnostic (runner self-checks): {diagnostic.Count(c => c.Result == c.ExpectedResult)} of {diagnostic.Count} reported as intended");
         int pending = PendingCases().Count();
         text.AppendLine($"Pending: {pending} cases" + (PendingBatches().Any() ? ", batches not started: " + string.Join(", ", PendingBatches()) : ""));
+        if (LoggedErrors > 0)
+            text.AppendLine($"Logged errors: {LoggedErrors} during the run, {ModErrors} naming '{Harness.Settings.ErrorMarker}'" +
+                            (ModErrors > 0 ? FailOnModErrors ? " (FAILS the run)" : " (not counted against the result)" : ""));
         foreach (var c in Cases)
         {
             bool notable = c.Diagnostic ? c.Result != c.ExpectedResult : c.Result != Results.Pass;
-            if (!notable) continue;
+            if (!notable)
+            {
+                // A pass that ran over logged errors is listed, so the errors are looked at; details are in its evidence.
+                if (!c.Diagnostic && c.LoggedErrors > 0) text.AppendLine($"  PASS WITH {c.LoggedErrors} LOGGED ERROR(S) {c.Batch}/{c.Id}");
+                continue;
+            }
             string intended = c.Diagnostic ? $" (intended {c.ExpectedResult})" : "";
             string coverage = c.Result == Results.Skip ? $" [{c.CoverageReason ?? CoverageReasons.Unclassified}]" : "";
             text.AppendLine($"  {c.Result.ToUpperInvariant()}{coverage} {c.Batch}/{c.Id}{intended}: {c.Reason}");

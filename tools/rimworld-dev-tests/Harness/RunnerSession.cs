@@ -21,6 +21,7 @@ internal static class RunnerSession
     {
         public string Session = null, Command = null, RunId = null, Batch = null;
         public int Seed = 1;
+        public long DeadlineUtcMs = 0;
     }
 
     public static void Read()
@@ -54,9 +55,10 @@ internal static class RunnerSession
             session = token, pid = Process.GetCurrentProcess().Id, state,
             productionHash, developerHash, harnessHash, runtimeHash, heartbeat = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
         }));
-        // A launcher may briefly hold the previous status file open while reading on Windows.
+        // A launcher may briefly hold the previous status file open while reading on Windows; replacing an open file is
+        // refused as a sharing violation or as access denied.
         try { File.Move(temp, StatusPath, true); }
-        catch (IOException) { return; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
         if (TestRunner.Running || !File.Exists(RequestPath)) return;
         Request request;
         try { request = JsonSerializer.Deserialize<Request>(File.ReadAllText(RequestPath), options); }
@@ -74,7 +76,7 @@ internal static class RunnerSession
             return;
         }
         if (request.Command != "run" || string.IsNullOrEmpty(request.RunId) || Path.GetFileName(request.RunId) != request.RunId) return;
-        var run = new RunRequest { Batch = request.Batch, Seed = request.Seed, Origin = "session" };
+        var run = new RunRequest { Batch = request.Batch, Seed = request.Seed, Origin = "session", DeadlineUtcMs = request.DeadlineUtcMs };
         if (!idle)
         {
             LaunchArguments.WriteRefusal(run, "session is no longer idle at the main menu", request.RunId);

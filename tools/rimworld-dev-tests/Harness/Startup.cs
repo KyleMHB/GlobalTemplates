@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using HarmonyLib;
 using LudeonTK;
 using RimWorld;
@@ -11,41 +13,103 @@ namespace RimWorldDevTests;
 [StaticConstructorOnStartup]
 public static class DevTestsStartup
 {
+    // The launcher passes -RimWorldDevTestsStartupError=<file>; a startup failure is written there so it can stop at once
+    // instead of waiting out its time limit. The name is fixed because the failure may be in the settings themselves.
+    internal const string StartupErrorArg = "RimWorldDevTestsStartupError";
+    // Written by install-dev next to the DLLs: the developer-menu path runs without launcher arguments.
+    internal const string ManualMarker = "RimWorldDevTests.manual";
+
     static DevTestsStartup()
     {
-        var s = Harness.Settings;
+        try { Initialize(); }
+        catch (Exception ex)
+        {
+            Log.Error("[RimWorldDevTests] Developer test runner failed to start: " + ex);
+            if (!GenCommandLine.TryGetCommandLineArg(StartupErrorArg, out string path) || string.IsNullOrEmpty(path)) return;
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message, detail = ex.ToString() }));
+            }
+            catch (Exception writeError) { Log.Error("[RimWorldDevTests] Could not write the startup error file: " + writeError.Message); }
+        }
+    }
+
+    private static MethodInfo Need(MethodInfo method, string name) =>
+        method ?? throw new InvalidOperationException("game method not found: " + name + "; the harness needs updating for this game build");
+
+    private static void Initialize()
+    {
+        bool manual = File.Exists(Path.Combine(Path.GetDirectoryName(typeof(DevTestsStartup).Assembly.Location), ManualMarker));
+        bool launcherRun = GenCommandLine.TryGetCommandLineArg(StartupErrorArg, out string _);
+        HarnessSettings s;
+        try { s = Harness.Settings; }
+        catch (Exception ex) when (!manual && !launcherRun)
+        {
+            Log.Warning("[RimWorldDevTests] Developer test DLLs are installed but inactive (" + ex.Message + "). Remove them with the mod's remove-dev command.");
+            return;
+        }
+        launcherRun |= GenCommandLine.TryGetCommandLineArg(s.ArgPrefix + "Session", out string _) || GenCommandLine.TryGetCommandLineArg(s.ArgPrefix + "Test", out string _);
+        // DLLs left behind by an interrupted launcher run load in the player's own game. Without a launcher argument or the
+        // install-dev marker they patch nothing.
+        if (!manual && !launcherRun)
+        {
+            Log.Warning(s.LogPrefix + "Developer test DLLs are installed but inactive: this game was not started by the test launcher. Remove them with the mod's remove-dev command.");
+            return;
+        }
         var harmony = new Harmony(s.HarmonyId);
-        harmony.Patch(AccessTools.Method(typeof(Root), nameof(Root.Update)), postfix: new HarmonyMethod(typeof(DevTestsStartup), nameof(AfterRootUpdate)));
-        harmony.Patch(AccessTools.Method(typeof(Game), "ExposeSmallComponents"), postfix: new HarmonyMethod(typeof(DevTestsStartup), nameof(AfterExposeSmallComponents)));
-        harmony.Patch(AccessTools.Method(typeof(UIRoot_Play), nameof(UIRoot_Play.UIRootOnGUI)), postfix: new HarmonyMethod(typeof(TestPresentation), nameof(TestPresentation.Draw)));
-        harmony.Patch(AccessTools.Method(typeof(UIRoot_Play), nameof(UIRoot_Play.UIRootOnGUI)), prefix: new HarmonyMethod(typeof(RunRecording), nameof(RunRecording.BeforeGUI)));
+        harmony.Patch(Need(AccessTools.Method(typeof(Root), nameof(Root.Update)), "Root.Update"), postfix: new HarmonyMethod(typeof(DevTestsStartup), nameof(AfterRootUpdate)));
+        harmony.Patch(Need(AccessTools.Method(typeof(Game), "ExposeSmallComponents"), "Game.ExposeSmallComponents"), postfix: new HarmonyMethod(typeof(DevTestsStartup), nameof(AfterExposeSmallComponents)));
+        var onGui = Need(AccessTools.Method(typeof(UIRoot_Play), nameof(UIRoot_Play.UIRootOnGUI)), "UIRoot_Play.UIRootOnGUI");
+        harmony.Patch(onGui, postfix: new HarmonyMethod(typeof(TestPresentation), nameof(TestPresentation.Draw)));
+        harmony.Patch(onGui, prefix: new HarmonyMethod(typeof(RunRecording), nameof(RunRecording.BeforeGUI)));
         var skip = new HarmonyMethod(typeof(DevTestsStartup), nameof(SkipForRunnerColony));
         // Autosave, incidents, weather, wild animals, random mood breaks, prison breaks and game over never run in a runner-owned
         // colony. Each prefix returns true unless the current game carries this runner's identity, so the user's games are untouched.
-        harmony.Patch(AccessTools.Method(typeof(Autosaver), nameof(Autosaver.AutosaverTick)), prefix: skip);
-        harmony.Patch(AccessTools.Method(typeof(Storyteller), nameof(Storyteller.StorytellerTick)), prefix: skip);
-        harmony.Patch(AccessTools.Method(typeof(WeatherDecider), nameof(WeatherDecider.WeatherDeciderTick)), prefix: skip);
+        // A missing method stops startup: a run without one of these suppressions would not be the documented environment.
+        harmony.Patch(Need(AccessTools.Method(typeof(Autosaver), nameof(Autosaver.AutosaverTick)), "Autosaver.AutosaverTick"), prefix: skip);
+        harmony.Patch(Need(AccessTools.Method(typeof(Storyteller), nameof(Storyteller.StorytellerTick)), "Storyteller.StorytellerTick"), prefix: skip);
+        harmony.Patch(Need(AccessTools.Method(typeof(WeatherDecider), nameof(WeatherDecider.WeatherDeciderTick)), "WeatherDecider.WeatherDeciderTick"), prefix: skip);
         // 2026-11-08: a modpack ability made wild animals berserk and they killed test pawns.
         if (AccessTools.Method(typeof(WildAnimalSpawner), nameof(WildAnimalSpawner.WildAnimalSpawnerTick)) is { } wildSpawner)
             harmony.Patch(wildSpawner, prefix: skip);
         else Log.Warning(s.LogPrefix + "WildAnimalSpawner.WildAnimalSpawnerTick not found; wild animals can still spawn");
         // 2026-11-07: mood breaks stalled ceremonies and destroyed fixtures mid-batch.
-        harmony.Patch(AccessTools.Method(typeof(Verse.AI.MentalBreaker), nameof(Verse.AI.MentalBreaker.TryDoRandomMoodCausedMentalBreak)), prefix: skip);
+        harmony.Patch(Need(AccessTools.Method(typeof(Verse.AI.MentalBreaker), nameof(Verse.AI.MentalBreaker.TryDoRandomMoodCausedMentalBreak)), "MentalBreaker.TryDoRandomMoodCausedMentalBreak"), prefix: skip);
         // Batches that remove every colonist must not start the game-over countdown.
-        harmony.Patch(AccessTools.Method(typeof(GameEnder), nameof(GameEnder.CheckOrUpdateGameOver)), prefix: skip);
+        harmony.Patch(Need(AccessTools.Method(typeof(GameEnder), nameof(GameEnder.CheckOrUpdateGameOver)), "GameEnder.CheckOrUpdateGameOver"), prefix: skip);
         foreach (var m in AccessTools.GetDeclaredMethods(typeof(PrisonBreakUtility)).Where(m => m.Name == "StartPrisonBreak")
             .Concat(AccessTools.GetDeclaredMethods(typeof(SlaveRebellionUtility)).Where(m => m.Name == "StartSlaveRebellion")))
             harmony.Patch(m, prefix: skip);
         // The Debug log window stays closed during runs, so it never covers the progress panel.
         foreach (var auto in new[] { AccessTools.Method(typeof(Log), "TryOpenLogWindow"), AccessTools.Method(typeof(EditWindow_Log), "TryAutoOpen") })
             if (auto != null) harmony.Patch(auto, prefix: new HarmonyMethod(typeof(DebugLogHider), nameof(DebugLogHider.AllowOpen)));
-        var logError = AccessTools.Method(typeof(Log), nameof(Log.Error), new[] { typeof(string) });
+        var logError = Need(AccessTools.Method(typeof(Log), nameof(Log.Error), new[] { typeof(string) }), "Log.Error(string)");
         harmony.Patch(logError, prefix: new HarmonyMethod(typeof(CaseErrors), nameof(CaseErrors.Record)));
         harmony.Patch(logError, prefix: new HarmonyMethod(typeof(StartupLog), nameof(StartupLog.Record)));
-        harmony.Patch(AccessTools.Method(typeof(Verse.AI.Pawn_JobTracker), nameof(Verse.AI.Pawn_JobTracker.StartJob)), postfix: new HarmonyMethod(typeof(JobStarts), nameof(JobStarts.After)));
+        harmony.Patch(Need(AccessTools.Method(typeof(Verse.AI.Pawn_JobTracker), nameof(Verse.AI.Pawn_JobTracker.StartJob)), "Pawn_JobTracker.StartJob"), postfix: new HarmonyMethod(typeof(JobStarts), nameof(JobStarts.After)));
+        TestRunner.Active = true;
         RunnerSession.Read();
         LaunchArguments.Read();
+        if (LaunchArguments.LauncherOwned) WriteBatchList(s);
         Log.Message(s.LogPrefix + "Developer test runner loaded. Evidence: " + TestRunner.EvidenceRoot);
+    }
+
+    // Lets the launcher list batches, and refuse an unknown one, without starting the game. A mod's batch that cannot be
+    // constructed this early only loses the list.
+    private static void WriteBatchList(HarnessSettings s)
+    {
+        try
+        {
+            Directory.CreateDirectory(TestRunner.EvidenceRoot);
+            File.WriteAllText(Path.Combine(TestRunner.EvidenceRoot, "batches.json"), System.Text.Json.JsonSerializer.Serialize(new
+            {
+                developerHash = EnvironmentInfo.Sha256(s.DevDllPath),
+                runAll = Batches.RunAll.ToList(),
+                batches = Batches.All.Values.Select(b => new { id = b.Id, diagnostic = b.Diagnostic, showcase = b.IsShowcase, cases = b.Plan.Select(p => p.Id).ToList() }).ToList(),
+            }));
+        }
+        catch (Exception ex) { Log.Warning(s.LogPrefix + "Could not write the batch list: " + ex.Message); }
     }
 
     private static void AfterRootUpdate()
@@ -59,7 +123,8 @@ public static class DevTestsStartup
 }
 
 // Errors naming the mod under test, from the moment DevTests loaded, whether or not a run is active. Errors logged before this
-// assembly's static constructor ran are not seen here; read Verse.Log.Messages too, and the launcher scans Player.log.
+// assembly's static constructor ran are not seen here; read Verse.Log.Messages too. The launcher copies Player.log into each
+// run folder.
 public static class StartupLog
 {
     private static readonly List<string> logged = new();
@@ -95,7 +160,8 @@ public static class JobStarts
         starts.TryGetValue((pawn.thingIDNumber, job.defName, target.thingIDNumber), out int n) ? n : 0;
 }
 
-// -<prefix>Test=<batch|run-all> -<prefix>Seed=<n> [-<prefix>RunId=<id>] [-<prefix>KeepOpen=true]: run once loaded, then quit.
+// -<prefix>Test=<batch|run-all> -<prefix>Seed=<n> [-<prefix>RunId=<id>] [-<prefix>KeepOpen=true] [-<prefix>Deadline=<UTC ms>]:
+// run once loaded, then quit.
 public static class LaunchArguments
 {
     private static RunRequest pending;
@@ -115,7 +181,8 @@ public static class LaunchArguments
             BlueprintPath = blueprint, SaveAs = saveAs,
             Record = GenCommandLine.TryGetCommandLineArg(p + "Record", out string recording) && recording == "true",
             HideUI = !GenCommandLine.TryGetCommandLineArg(p + "ShowUI", out string showUI) || showUI != "true",
-            KeepOpen = GenCommandLine.TryGetCommandLineArg(p + "KeepOpen", out string keepOpen) && keepOpen == "true" };
+            KeepOpen = GenCommandLine.TryGetCommandLineArg(p + "KeepOpen", out string keepOpen) && keepOpen == "true",
+            DeadlineUtcMs = GenCommandLine.TryGetCommandLineArg(p + "Deadline", out string deadline) && long.TryParse(deadline, out long ms) ? ms : 0 };
     }
 
     public static void TryStart()
@@ -139,7 +206,7 @@ public static class LaunchArguments
         if (Directory.Exists(dir)) return;
         Directory.CreateDirectory(dir);
         if (request.Batches.Count == 0) request.Batches = new List<string> { request.Batch };
-        var progress = new Progress { RunId = id, Request = request, Status = RunStatus.Refused, Reason = refusal, StartedUtc = System.DateTime.UtcNow.ToString("o") };
+        var progress = new Progress { RunId = id, Request = request, Status = RunStatus.Refused, Reason = refusal, StartedUtc = DateTime.UtcNow.ToString("o") };
         Controller.WriteOutputs(progress, dir);
     }
 }
@@ -151,6 +218,11 @@ public static class DevMenu
     [DebugAction("Developer tests", "Run test batch...", allowedGameStates = AllowedGameStates.Invalid)]
     private static void RunBatch()
     {
+        if (!TestRunner.Active)
+        {
+            Messages.Message(TestRunner.InactiveReason, MessageTypeDefOf.RejectInput, false);
+            return;
+        }
         var options = TestRunner.BatchIds.Append(TestRunner.RunAll).Select(id => new FloatMenuOption($"{Harness.Settings.DisplayName}: {id}", () =>
             Find.WindowStack.Add(new FloatMenu(new[] { 1, 2, 3 }.Select(seed =>
                 new FloatMenuOption("seed " + seed, () => Start(id, seed))).ToList())))).ToList();
@@ -170,6 +242,11 @@ public static class DevMenu
     [DebugAction("Developer tests", "Show last test summary", allowedGameStates = AllowedGameStates.Invalid)]
     private static void ShowSummary()
     {
+        if (!TestRunner.Active)
+        {
+            Messages.Message(TestRunner.InactiveReason, MessageTypeDefOf.RejectInput, false);
+            return;
+        }
         string text = TestRunner.LastReport?.Summary(TestRunner.LastRunDir) ?? "No test run has finished in this session. Evidence: " + TestRunner.EvidenceRoot;
         Find.WindowStack.Add(new Dialog_MessageBox(text));
     }

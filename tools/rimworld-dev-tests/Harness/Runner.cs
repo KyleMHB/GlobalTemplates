@@ -41,6 +41,9 @@ public static class TestRunner
 
     private static Controller controller;
     public static bool Running => controller != null;
+    // False when the DLLs were left installed without a launcher argument or the install-dev marker (DevTestsStartup).
+    public static bool Active { get; internal set; }
+    internal const string InactiveReason = "developer tests are inactive in this game: start it with the test launcher, or run install-dev";
     public static Progress LastReport { get; private set; }
     public static string LastRunDir { get; private set; }
 
@@ -51,6 +54,7 @@ public static class TestRunner
     // Returns null when the run started, otherwise why it was refused.
     public static string Start(RunRequest request, string runId = null)
     {
+        if (!Active) return InactiveReason;
         if (Current.ProgramState == ProgramState.Playing && !RunnerIdentity.Owned(Current.Game))
             return "an unrelated colony is active; return to the main menu or start from a runner-owned test colony";
         if (controller != null) return "a test run is already in progress";
@@ -82,7 +86,8 @@ public static class TestRunner
         RunRecording.Configure(request, dir);
         TestPresentation.Reset(!batches.Any(b => b.IsShowcase));
         foreach (var b in batches) b.Archive(request, dir);
-        var progress = new Progress { RunId = runId, Request = request, StartedUtc = DateTime.UtcNow.ToString("o"), Stage = Controller.LeaveGame };
+        var progress = new Progress { RunId = runId, Request = request, StartedUtc = DateTime.UtcNow.ToString("o"), Stage = Controller.LeaveGame,
+            FailOnModErrors = Harness.Settings.FailOnModErrors };
         File.WriteAllText(ActivePointer, dir);
         controller = new Controller(progress, dir);
         controller.Save();
@@ -147,7 +152,9 @@ internal class Controller
     private Wait wait;
     private DateTime stageStarted = DateTime.UtcNow, batchStarted;
     private string cancelReason, quickstartError;
-    private bool recordingReady;
+    private bool recordingReady, batchOpen;
+    // Errors logged from here on are the run's; totals go into the report whatever each case's result.
+    private readonly long runErrorMark = CaseErrors.Mark, runModErrorMark = CaseErrors.ModMark;
 
     public Controller(Progress progress, string dir)
     {
@@ -177,6 +184,13 @@ internal class Controller
         try
         {
             if (cancelReason != null) { Finish(RunStatus.Cancelled, cancelReason); return; }
+            // The launcher kills the game at its own limit. Closing the run just before that keeps a report with every
+            // finished case; a frame that never returns is still stopped by the kill.
+            if (progress.Request.DeadlineUtcMs > 0 && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() > progress.Request.DeadlineUtcMs)
+            {
+                Finish(RunStatus.Interrupted, "the launcher's time limit was reached; the run was closed before the game was stopped");
+                return;
+            }
             switch (progress.Stage)
             {
                 case LeaveGame:
@@ -192,11 +206,11 @@ internal class Controller
                     break;
                 case AwaitMap:
                     if (quickstartError != null) { EndBatch("quickstart failed: " + quickstartError); break; }
-                    if (MapReady()) { ResumeFromFile(); PrepareMap(); StartSegment(0); }
+                    if (MapReady()) { BindBatch(); PrepareMap(); StartSegment(0); }
                     else if (DateTime.UtcNow - stageStarted > SceneLimit) EndBatch("map generation exceeded the wall-clock limit");
                     break;
                 case AwaitLoad:
-                    if (MapReady()) { ResumeFromFile(); ArchiveSave(); ctx.Setup($"Reloaded runner save {progress.CurrentSave}"); StartSegment(progress.Segment + 1); }
+                    if (MapReady()) { BindBatch(); ArchiveSave(); ctx.Setup($"Reloaded runner save {progress.CurrentSave}"); StartSegment(progress.Segment + 1); }
                     else if (DateTime.UtcNow - stageStarted > SceneLimit) EndBatch("reload exceeded the wall-clock limit");
                     break;
                 case RunSegment:
@@ -217,13 +231,13 @@ internal class Controller
     private bool MapReady() =>
         Current.ProgramState == ProgramState.Playing && Find.CurrentMap != null && RunnerIdentity.Of(Current.Game) == Identity;
 
-    // Scene loads replace the game; the progress file, not memory, says where the run stands.
-    private void ResumeFromFile()
+    // A scene load replaces the game but not this controller, so the run continues from memory; progress.json is for the
+    // launcher and for recovery after the process dies.
+    private void BindBatch()
     {
-        var stored = Progress.Read(ProgressPath);
-        if (stored.RunId != progress.RunId) throw new InvalidOperationException("progress file belongs to another run");
-        progress = stored;
         batch = Batches.All[BatchId];
+        // Subject callbacks hold pawns from the game that was just replaced; batches re-register subjects after a reload.
+        foreach (var c in progress.Cases) c.SubjectStates.Clear();
         ctx = new BatchContext(progress, Record, batch) { Save = Save };
         TestPresentation.Changed(progress, batch);
     }
@@ -237,6 +251,7 @@ internal class Controller
         TestPresentation.Changed(progress, batch);
         progress.Segment = 0;
         quickstartError = null;
+        batchOpen = true;
         Stage(AwaitMap);
         Quickstarter.Queue(Identity, progress.Request.Seed, batch.MapSize, ex => quickstartError = ex.Message);
     }
@@ -300,16 +315,7 @@ internal class Controller
                 Kit.KeepResearch(ctx);
                 Harness.Settings.MaintainSetup(ctx);
                 try { more = segment.MoveNext(); }
-                catch (Exception ex)
-                {
-                    Log.Error(Harness.Settings.LogPrefix + "Case exception: " + ex);
-                    // 2026-11-06: an error flood earlier in a run-all can stop the game log, leaving an exception with no location.
-                    // The top stack frames go into the batch's setup record as well.
-                    if (ex is not SetupException)
-                        ctx.Setup("Exception stack (top frames): " + string.Join(" | ", (ex.StackTrace ?? "none").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).Take(6)));
-                    EndBatch("exception: " + ex.GetType().Name + ": " + ex.Message);
-                    return;
-                }
+                catch (Exception ex) { CaseException(ex, "case code"); return; }
                 if (!more)
                 {
                     if (progress.Segment + 1 < batch.SegmentCount) StartSegment(progress.Segment + 1);
@@ -320,40 +326,56 @@ internal class Controller
                 RunTimeline.Event("wait-start", batch.Id, detail: wait?.GetType().Name);
                 continue;
             }
-            switch (wait)
+            // A wait runs the case's own condition and per-tick callbacks and the mod's hooks, so a throw here is the
+            // case's, with the same record as one from its segment.
+            try
             {
-                case TickWait t:
-                    if (t.Remaining <= 0) { EndWait(); break; }
-                    Tick(t);
-                    t.Remaining--;
-                    break;
-                case UntilWait u:
-                    if (u.Condition()) { ctx.TimedOut = false; EndWait(); break; }
-                    if (u.Remaining <= 0) { ctx.TimedOut = true; EndWait(); break; }
-                    Tick(u);
-                    u.Remaining--;
-                    break;
-                case FrameWait f:
-                    if (--f.Remaining <= 0) EndWait();
-                    return;
-                case ReloadWait:
-                    EndWait();
-                    Reload();
-                    return;
-                case RecordingWait:
-                    if (RunRecording.CaptureStarted()) EndWait();
-                    return;
-                case RealtimeWait r:
-                    double now = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
-                    while (r.Simulate && r.NextTick < Math.Min(now, r.Deadline) && clock.Elapsed.TotalMilliseconds < FrameBudgetMs)
-                    {
-                        Tick(r);
-                        r.NextTick += 1d / 60;
-                    }
-                    if (Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency >= r.Deadline) { EndWait(); break; }
-                    return;
+                switch (wait)
+                {
+                    case TickWait t:
+                        if (t.Remaining <= 0) { EndWait(); break; }
+                        Tick(t);
+                        t.Remaining--;
+                        break;
+                    case UntilWait u:
+                        if (u.Condition()) { u.TimedOut = ctx.TimedOut = false; EndWait(); break; }
+                        if (u.Remaining <= 0) { u.TimedOut = ctx.TimedOut = true; EndWait(); break; }
+                        Tick(u);
+                        u.Remaining--;
+                        break;
+                    case FrameWait f:
+                        if (--f.Remaining <= 0) EndWait();
+                        return;
+                    case ReloadWait:
+                        EndWait();
+                        Reload();
+                        return;
+                    case RecordingWait:
+                        if (RunRecording.CaptureStarted()) EndWait();
+                        return;
+                    case RealtimeWait r:
+                        double now = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
+                        while (r.Simulate && r.NextTick < Math.Min(now, r.Deadline) && clock.Elapsed.TotalMilliseconds < FrameBudgetMs)
+                        {
+                            Tick(r);
+                            r.NextTick += 1d / 60;
+                        }
+                        if (Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency >= r.Deadline) { EndWait(); break; }
+                        return;
+                }
             }
+            catch (Exception ex) { CaseException(ex, "a " + wait?.GetType().Name + " condition, callback or tick"); return; }
         }
+    }
+
+    private void CaseException(Exception ex, string where)
+    {
+        Log.Error(Harness.Settings.LogPrefix + "Case exception in " + where + ": " + ex);
+        // 2026-11-06: an error flood earlier in a run-all can stop the game log, leaving an exception with no location.
+        // The top stack frames go into the batch's setup record as well.
+        if (ex is not SetupException)
+            ctx.Setup("Exception stack (top frames): " + string.Join(" | ", (ex.StackTrace ?? "none").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).Take(6)));
+        EndBatch("exception in " + where + ": " + ex.GetType().Name + ": " + ex.Message);
     }
 
     // Round 4: over days of game time colonists ran out of food and recreation, and their moods collapsed. They left ceremonies,
@@ -481,8 +503,7 @@ internal class Controller
     // Closes the current batch. A reason means it ended early: its unrecorded cases are skipped with that reason.
     private void EndBatch(string reason)
     {
-        // Settings a batch changed in memory never outlive it, even when it ends on an exception or cancellation.
-        Harness.Settings.OnBatchEnd();
+        CloseBatchHooks();
         segment?.Dispose();
         Kit.ClearResearchGuard();
         Kit.ClearPowerHolds();
@@ -493,7 +514,7 @@ internal class Controller
             {
                 c.Result = Results.Error;
                 c.Reason = reason ?? "case started but never finished";
-                c.CaptureFailure(CaseErrors.For(c, ctx?.ErrorMark ?? -1));
+                c.CaptureOutcome(ctx?.ErrorMark ?? -1);
             }
             if (reason != null)
                 foreach (var planned in batch.Plan.Where(p => progress.Case(record.Id, p.Id) == null))
@@ -507,9 +528,25 @@ internal class Controller
         }
         segment = null;
         wait = null;
+        CountErrors();
         progress.BatchIndex++;
         if (progress.BatchIndex < progress.Request.Batches.Count) Stage(LeaveGame);
         else Finish(RunStatus.Complete, "");
+    }
+
+    // Settings a batch changed in memory never outlive it, even when it ends on an exception or cancellation. The hook runs
+    // once per started batch.
+    private void CloseBatchHooks()
+    {
+        if (!batchOpen) return;
+        batchOpen = false;
+        Harness.Settings.OnBatchEnd();
+    }
+
+    private void CountErrors()
+    {
+        progress.LoggedErrors = (int)(CaseErrors.Mark - runErrorMark);
+        progress.ModErrors = (int)(CaseErrors.ModMark - runModErrorMark);
     }
 
     internal static void Close(Progress progress, string status, string reason)
@@ -518,7 +555,7 @@ internal class Controller
         {
             c.Result = Results.Error;
             c.Reason = status + " while the case was running: " + reason;
-            c.CaptureFailure(CaseErrors.For(c));
+            c.CaptureOutcome();
         }
         foreach (var b in progress.BatchRecords.Where(b => b.Status == RunStatus.Running)) b.Status = status;
         progress.Status = status;
@@ -535,7 +572,8 @@ internal class Controller
 
     private void Finish(string status, string reason)
     {
-        Harness.Settings.OnBatchEnd();
+        CloseBatchHooks();
+        CountErrors();
         segment?.Dispose();
         segment = null;
         Kit.ClearResearchGuard();
@@ -625,6 +663,11 @@ internal static class EnvironmentInfo
             ["harnessHash"] = Sha256(typeof(TestRunner).Assembly.Location),
             ["game"] = new Dictionary<string, string> { ["version"] = VersionControl.CurrentVersionStringWithRev },
             ["modBuild"] = new Dictionary<string, string> { ["path"] = dll, ["sha256"] = File.Exists(dll) ? Sha256(dll) : null },
+            // What RuntimeManifest hashed, so the launcher can name a devtests.json that disagrees instead of a bare hash mismatch.
+            ["runtimeConfig"] = new Dictionary<string, object>
+            {
+                ["folders"] = Harness.Settings.RuntimeFolders, ["files"] = Harness.Settings.RuntimeFiles, ["exclusions"] = Harness.Settings.ExtraRuntimeExclusions,
+            },
             ["modCount"] = LoadedModManager.RunningModsListForReading.Count,
             ["mods"] = LoadedModManager.RunningModsListForReading.Select(m => m.PackageId + (m.ModMetaData?.ModVersion is { Length: > 0 } v ? "@" + v : "")).ToList(),
             ["dlc"] = new Dictionary<string, bool>

@@ -21,7 +21,6 @@ public class DiagnosticBatch : Batch
         new PlannedCase("diag.missing-required-def", Levels.Diagnostic, Results.Error),
         new PlannedCase("diag.timeout", Levels.Diagnostic, Results.Error),
         new PlannedCase("diag.refuse-unrelated-colony", Levels.Diagnostic, Results.Pass),
-        new PlannedCase("diag.autosave-suppressed", Levels.Diagnostic, Results.Pass),
         new PlannedCase("diag.coverage-setup", Levels.Diagnostic, Results.Pass),
         new PlannedCase("diag.coverage-optional", Levels.Diagnostic, Results.Pass),
         new PlannedCase("diag.coverage-blocked", Levels.Diagnostic, Results.Pass),
@@ -74,15 +73,6 @@ public class DiagnosticBatch : Batch
         refuse.Observe("refused", refusal != null).Observe("reason", refusal);
         refuse.Check(refusal != null && refusal.Contains("unrelated colony"), "the runner did not refuse a start over an unrelated colony");
 
-        // A full autosave interval passes without a save while this colony is runner-owned.
-        var autosave = ctx.Begin("diag.autosave-suppressed").Expect("autosavesWritten", 0).Setup("Advanced one autosave interval (Prefs.AutosaveIntervalDays)");
-        var before = AutosaveStamps();
-        int interval = (int)(Prefs.AutosaveIntervalDays * GenDate.TicksPerDay) + 10;
-        autosave.Observe("intervalTicks", interval);
-        yield return Wait.Ticks(interval);
-        int written = AutosaveStamps().Count(kv => !before.TryGetValue(kv.Key, out var t) || t != kv.Value);
-        autosave.Observe("autosavesWritten", written).Check(written == 0, $"{written} autosave files were written or changed");
-
         Progress Example(string category) => new()
         {
             Status = RunStatus.Complete,
@@ -107,6 +97,31 @@ public class DiagnosticBatch : Batch
         ctx.LastWait.AfterTick();
         ctx.Begin("diag.window-invalid").Subject(colonists.FirstOrDefault()).Check(true, "an invalid window passed");
         ctx.LastWait = previous;
+    }
+}
+
+// A full autosave interval passes without a save while this colony is runner-owned. Kept out of run-all because it
+// simulates at least one in-game day; the launcher's self-check runs it.
+public class DiagnosticAutosaveBatch : Batch
+{
+    public override string Id => "diagnostic-autosave";
+    public override bool Diagnostic => true;
+    public override int SegmentCount => 1;
+
+    public override IReadOnlyList<PlannedCase> Plan { get; } = new[]
+    {
+        new PlannedCase("diag.autosave-suppressed", Levels.Diagnostic, Results.Pass),
+    };
+
+    public override IEnumerable<Wait> Segment(int index, BatchContext ctx)
+    {
+        var autosave = ctx.Begin("diag.autosave-suppressed").Expect("autosavesWritten", 0).Setup("Advanced one autosave interval (Prefs.AutosaveIntervalDays)");
+        var before = AutosaveStamps();
+        int interval = (int)(Prefs.AutosaveIntervalDays * GenDate.TicksPerDay) + 10;
+        autosave.Observe("intervalTicks", interval);
+        yield return Wait.Ticks(interval);
+        int written = AutosaveStamps().Count(kv => !before.TryGetValue(kv.Key, out var t) || t != kv.Value);
+        autosave.Observe("autosavesWritten", written).Check(written == 0, $"{written} autosave files were written or changed");
     }
 
     private static Dictionary<string, System.DateTime> AutosaveStamps() =>

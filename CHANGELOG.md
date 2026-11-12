@@ -12,8 +12,15 @@
 - Added install steps for Codex and Claude Code to the README.
 - Added the RimWorld Translate tool under `tools/` and its `rimworld-translate` skill.
 - Added translatable-by-default rules for new RimWorld mods to the RimWorld agent guide: prefixed Keyed keys, no hardcoded English in C#, and a build check that enforces it.
+- Added `list`, `self-check` and `prune` commands to the RimWorld Dev Tests launcher, and unit tests for its mod-set, manifest and exit-code logic.
+- Added logged-error counts to RimWorld Dev Tests reports, with an opt-in `FailOnModErrors` setting that fails a run when the mod under test logs an error.
 
 ### Changed
+
+- Made RimWorld Dev Tests close a run with a report shortly before the launcher's time limit, and report a runner that fails to start at once instead of waiting out the limit.
+- Moved the day-long autosave self-check out of `run-all` into its own `diagnostic-autosave` batch.
+- Made developer DLLs left behind by a stopped launcher inactive in games the launcher did not start. `install-dev` now writes a marker file that enables the developer menu.
+- Pinned the language and autosave interval in the harness's copy of `Prefs.xml`, and kept a copy of `Player.log` in each run folder.
 
 - Made approval final in the RimWorld artwork guide: approved art changes only when its author asks for a redo.
 - Removed references to specific mods so the templates and guides apply to any project.
@@ -22,6 +29,11 @@
 ### Fixed
 
 - Fixed template validation for the Steam description's AI disclosure section.
+- Fixed `latest` in RimWorld Dev Tests showing an older run when the newest one was killed or crashed.
+- Fixed the launcher ignoring `ExtraRuntimeExclusions`; `devtests.json` now takes a matching `runtimeExclusions` list.
+- Fixed launcher crashes exiting with the same code as test failures; they now exit with code 4.
+- Fixed exceptions from wait conditions and per-tick callbacks being reported as runner errors without a stack.
+- Fixed the launcher hashing every player save twice per run.
 
 ## 2026-11-09
 
