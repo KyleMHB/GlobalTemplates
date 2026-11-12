@@ -159,31 +159,31 @@ Test-InvalidFixture -Name 'README public-copy mapping drift' -ExpectedError "REA
 }
 
 foreach ($requiredHeading in @('Use when', 'Evidence', 'Update rules', 'Validation', 'Delivery')) {
-    $missingHeadingMutation = {
-        param($fixtureRoot)
-        Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
-            param($content)
-            $content.Replace("## $requiredHeading", "## Removed $requiredHeading")
-        }
-    }.GetNewClosure()
+    # Script scope instead of GetNewClosure: a closure runs in its own module scope,
+    # where PowerShell 7 cannot see this script's helper functions.
+    $script:currentHeading = $requiredHeading
 
     Test-InvalidFixture `
         -Name "missing $requiredHeading heading" `
         -ExpectedError "must contain exactly one '## $requiredHeading' heading; found 0" `
-        -Mutation $missingHeadingMutation
-
-    $duplicateHeadingMutation = {
-        param($fixtureRoot)
-        Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
-            param($content)
-            "$content`n`n## $requiredHeading`n"
+        -Mutation {
+            param($fixtureRoot)
+            Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+                param($content)
+                $content.Replace("## $script:currentHeading", "## Removed $script:currentHeading")
+            }
         }
-    }.GetNewClosure()
 
     Test-InvalidFixture `
         -Name "duplicate $requiredHeading heading" `
         -ExpectedError "must contain exactly one '## $requiredHeading' heading; found 2" `
-        -Mutation $duplicateHeadingMutation
+        -Mutation {
+            param($fixtureRoot)
+            Set-FixtureContent -FixtureRoot $fixtureRoot -RelativePath 'Git/readme-template.md' -Transform {
+                param($content)
+                "$content`n`n## $script:currentHeading`n"
+            }
+        }
 }
 
 Test-InvalidFixture -Name 'orphan template file' -ExpectedError "contains unmapped template 'Git/orphan-template.md'" -Mutation {
