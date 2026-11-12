@@ -1,0 +1,38 @@
+<Project>
+  <!--
+    Shared RimWorld developer test harness. A mod's DevTests project imports this file after setting:
+      DevTestsProductionDll  path to the mod's production DLL (required)
+    and optionally RimWorldPath, HarmonyPath. Machine-specific paths go in an untracked RimWorldDevTests.local.props next to this file.
+    The harness is an incremental project reference, built separately from the mod cases. See README.md in this folder.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)RimWorldDevTests.local.props" Condition="Exists('$(MSBuildThisFileDirectory)RimWorldDevTests.local.props')" />
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <NoStdLib>true</NoStdLib>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <DebugType>none</DebugType>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <RimWorldPath Condition="'$(RimWorldPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\RimWorld</RimWorldPath>
+    <HarmonyPath Condition="'$(HarmonyPath)' == ''">$(RimWorldPath)\..\..\workshop\content\294100\2009463077\1.7\Assemblies\0Harmony.dll</HarmonyPath>
+    <RimWorldDevTestsDir>$(MSBuildThisFileDirectory)</RimWorldDevTestsDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(RimWorldDevTestsDir)RimWorldDevTests.csproj" Condition="'$(MSBuildProjectName)' != 'RimWorldDevTests'" />
+    <Reference Include="$(RimWorldPath)\System.*.dll;$(RimWorldPath)\mscorlib.dll;$(RimWorldPath)\netstandard.dll;$(RimWorldPath)\Assembly-CSharp.dll;$(RimWorldPath)\UnityStubs.dll;$(RimWorldPath)\Waylith.UnityCompat.dll;$(RimWorldPath)\Waylith.dll;$(RimWorldPath)\Brutal.Core.Numerics.dll;$(RimWorldPath)\Brutal.Core.Common.dll" Exclude="$(RimWorldPath)\System.IO.Compression.Native.dll">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(HarmonyPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="$(DevTestsProductionDll)" Condition="'$(DevTestsProductionDll)' != ''">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

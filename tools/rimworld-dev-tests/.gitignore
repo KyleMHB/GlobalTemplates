@@ -1,0 +1,7 @@
+bin/
+obj/
+__pycache__/
+*.pyc
+work/
+*.local.props
+rimtest.local.json

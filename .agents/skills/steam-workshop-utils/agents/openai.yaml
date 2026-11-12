@@ -1,0 +1,5 @@
+interface:
+  display_name: "Steam Workshop Utils"
+  short_description: "Inspect Workshop mods and publish new mods or updates"
+  default_prompt: "Use $steam-workshop-utils to publish a mod release through SteamCMD with local template-backed documentation and media, or inspect mods and update descriptions; reuse existing local documents and use $unslop only for new or explicitly edited public copy."
+

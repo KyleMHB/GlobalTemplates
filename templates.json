@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "templates": [
+    {
+      "id": "readme",
+      "template": "Git/readme-template.md",
+      "target": "README.md",
+      "format": "gfm",
+      "publicFacing": true,
+      "appliesWhen": "Explicit template-backed README request"
+    },
+    {
+      "id": "changelog",
+      "template": "Git/change-log-template.md",
+      "target": "CHANGELOG.md",
+      "format": "gfm",
+      "publicFacing": true,
+      "appliesWhen": "Explicit request, or a completed change with useful user, maintainer, or operational impact"
+    },
+    {
+      "id": "testing-guide",
+      "template": "Git/testing-template.md",
+      "target": "TESTING.md",
+      "format": "gfm",
+      "publicFacing": false,
+      "appliesWhen": "Explicit request to create, or material changes to an existing file's procedures, expectations, or evidence"
+    },
+    {
+      "id": "steam-description",
+      "template": "Steam/steam-description-template.md",
+      "target": "steam-description.md",
+      "format": "bbcode",
+      "publicFacing": true,
+      "appliesWhen": "Explicit template-backed Steam Workshop description request"
+    },
+    {
+      "id": "wayward-mod-json",
+      "template": "Steam/wayward/wayward-mod-json-template.md",
+      "target": "mod.json",
+      "format": "json",
+      "publicFacing": true,
+      "appliesWhen": "Explicit template-backed Wayward metadata request"
+    },
+    {
+      "id": "rimworld-about-xml",
+      "template": "Steam/rimworld/rimworld-about-xml-template.md",
+      "target": "About/About.xml",
+      "format": "xml",
+      "publicFacing": true,
+      "appliesWhen": "Explicit template-backed RimWorld metadata request"
+    }
+  ]
+}

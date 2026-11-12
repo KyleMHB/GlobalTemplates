@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Mod"
+  short_description: "Audit mods and plan reviewed improvements"
+  default_prompt: "Use $review-mod to review the current mod and save a dated report, or run its plan operation from an existing review."
