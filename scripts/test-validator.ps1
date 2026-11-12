@@ -331,3 +331,4 @@ if ($failedTests.Count -gt 0) {
 }
 
 Write-Host 'All validator tests passed.' -ForegroundColor Green
+exit 0
