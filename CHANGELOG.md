@@ -11,6 +11,7 @@
 - Added author profiles under `profiles/`; the README and Steam description templates take the Ko-fi link and AI disclosure from the profile your instructions name.
 - Added install steps for Codex and Claude Code to the README.
 - Added the RimWorld Translate tool under `tools/` and its `rimworld-translate` skill.
+- Added translatable-by-default rules for new RimWorld mods to the RimWorld agent guide: prefixed Keyed keys, no hardcoded English in C#, and a build check that enforces it.
 
 ### Changed
 
