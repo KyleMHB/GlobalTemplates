@@ -10,6 +10,7 @@
 - Added the RimWorld Dev Tests harness and RimWorld Mask Editor under `tools/`, with game paths set per machine instead of hardcoded.
 - Added author profiles under `profiles/`; the README and Steam description templates take the Ko-fi link and AI disclosure from the profile your instructions name.
 - Added install steps for Codex and Claude Code to the README.
+- Added the RimWorld Translate tool under `tools/` and its `rimworld-translate` skill.
 
 ### Changed
 

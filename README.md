@@ -33,6 +33,7 @@ https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/
 - `Git/matt-pocock-workflow.md` shows which engineering skill to use for each kind of work.
 - `tools/rimworld-dev-tests` is a shared C# runner and Python launcher for in-game RimWorld mod tests. Start with its `AGENTS.md`.
 - `tools/rimworld-mask-editor` is a mask painter, artwork gallery and recipe exporter for RimWorld mods. Start with its `README.md`.
+- `tools/rimworld-translate` checks, extracts, exports and imports RimWorld mod translations; the `rimworld-translate` skill drives it.
 - `profiles/` holds author profiles; see [Author details](#author-details).
 
 ## Install
@@ -55,7 +56,7 @@ Clone this repository anywhere. Below, `<templates-root>` means that folder.
    ln -s "<templates-root>/.agents/skills/steam-workshop-utils" ~/.claude/skills/steam-workshop-utils
    ~~~
 
-   Repeat for `review-mod` and for `~/.agents/skills`. Optional `agents/openai.yaml` files are Codex metadata; other agents use `SKILL.md` alone. See [skill lookup](skill-lookup.md) for discovery and fallback rules.
+   Repeat for `review-mod` and `rimworld-translate`, and for the Codex folder. Optional `agents/openai.yaml` files are Codex metadata; other agents use `SKILL.md` alone. See [skill lookup](skill-lookup.md) for discovery and fallback rules.
 3. **Install the engineering skills** (optional). `AGENTS.md` routes planning and implementation to the Matt Pocock skills, verified at v1.3.1; see [the workflow guide](Git/matt-pocock-workflow.md). Install that version for each agent you use. Without them, agents do the same work directly.
 4. **Name your author profile** (optional). See [Author details](#author-details).
 5. **Set local game paths** for the RimWorld test harness, if you use it. See its README's "Local paths".
