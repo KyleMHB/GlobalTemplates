@@ -12,14 +12,14 @@ A row is one item. Its images run oldest to newest, and the last one is the vers
 - **The versions are files on disk or known commits.** Use `--item`. Each image is a path, the name of an image tracked by git (`SunstoneArray`), or `REV:path` for a committed version.
 - **The versions are the file's own git history.** Use `--history COUNT`, which takes the last COUNT distinct versions and captions each with the date it was committed.
 
-Rows may hold different numbers of versions. Shorter rows sit to the right so the current versions line up. When a sheet has column headings, give every row the same number of versions, repeating an image for an item that did not change; the sheet marks it `=` and "unchanged".
+Items may hold different numbers of versions. When the sheet has `--labels`, give every item the same number of versions, repeating an image for an item that did not change; the sheet marks it `=` and "unchanged".
 
 Done when: you can name each row's images in order, and you have looked at where older versions live (a `previous-production` folder, a commit) instead of guessing.
 
 ## 2. Render
 
 ~~~bash
-# Several items, shared column headings
+# Several items, shared version names
 sheet -o work/contact-sheets/sunstone.png --title "Sunstone fixtures" --subtitle "Fewer, larger crystals" \
   --labels Before "First pass" Current \
   --item Array old/SunstoneArray.png b634a49:Textures/Things/Building/Misc/SunstoneArray.png SunstoneArray \
@@ -33,12 +33,13 @@ sheet -o work/contact-sheets/array.png --labels Before After --item "Sunstone ar
 ~~~
 
 - Write the sheet to an ignored folder in the project (`work/contact-sheets/` where `work/` is ignored), never among shipped textures.
+- The default layout, `cards`, shows each item's current version large with its earlier versions as thumbnails beside it. Pass `--layout hero` for a left-to-right row per item when the steps matter as much as the result, or `--layout grid` for equal tiles when the user asks for an even comparison.
 - `--title`, `--subtitle` and `--footer` are optional. A single row with no title uses its label as the title.
-- Arrows and the highlight take each row's colour from its art; `--accent #hex` sets one colour for all rows. `--backdrop #hex` changes the tile behind the art, and `--cell` the tile size.
-- Keep to four columns or fewer. Discord shrinks wider images until the art is hard to read.
+- Arrows and the highlight take each row's colour from its art; `--accent #hex` sets one colour for all rows. `--backdrop #hex` changes the tile behind the art, and `--cell` the size of the current version's tile.
+- Keep to four versions or fewer. Thumbnails get too small in `cards`, and Discord shrinks a wide `hero` or `grid` sheet until the art is hard to read.
 
 Done when: the command printed the output path and size.
 
 ## 3. Check and hand over
 
-Open the image and check that every row reads oldest to newest, the labels match the versions, and no tile is empty by mistake. Give the user the file. Say which version each column is and where it came from. Posting it is the user's step.
+Open the image and check that every item reads oldest to newest, the labels match the versions, and no tile is empty by mistake. Give the user the file. Say which version each column is and where it came from. Posting it is the user's step.
