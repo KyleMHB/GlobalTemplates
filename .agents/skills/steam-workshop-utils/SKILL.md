@@ -1,6 +1,6 @@
 ---
 name: steam-workshop-utils
-description: Inspect Steam Workshop mods, update owned descriptions, or publish new mods and release updates on request. Use cached evidence for mod research and SteamCMD for publication, with template-backed local artifacts and unslop public copy.
+description: Inspect Steam Workshop mods, update owned descriptions, or publish new mods and release updates on request. Use cached evidence for mod research and the signed-in Steam client for publication, with SteamCMD as the second route, with template-backed local artifacts and unslop public copy.
 ---
 
 # Steam Workshop Utils
@@ -13,10 +13,10 @@ The scripts are designed for bulk mod lists. They avoid image/media downloads, u
 
 ## Choose the workflow
 
-- For `publish`, `publish an update`, or `publish a new mod`, read [references/publish-workshop-item.md](references/publish-workshop-item.md). Resolve an existing item before creation, load the matching game context, prepare the release/docs/media locally, and publish through the game's supported routes. Prefer SteamCMD where supported. This command includes a useful release note and public release comment unless the user excludes them.
+- For `publish`, `publish an update`, or `publish a new mod`, read [references/publish-workshop-item.md](references/publish-workshop-item.md). Resolve an existing item before creation, load the matching game context, prepare the release/docs/media locally, and publish through the game's supported routes. Update existing items through the signed-in Steam client first, then SteamCMD. This command includes a useful release note and public release comment unless the user excludes them.
 
 - For inspection, collection sync, and cached evidence reports, use the existing workflow below.
-- For `update workshop item`, read [references/update-workshop-item.md](references/update-workshop-item.md). Load the matching game context and update the selected owned item's description using SteamCMD first where supported, with an available authenticated browser as a fallback under the reference's conditions. Edit the latest changelog or post a public update comment only when the user explicitly requests each action. Reuse existing local documents as already unslopped; apply `unslop` only to new or explicitly edited copy. Configuring this skill does not authorize publication.
+- For `update workshop item`, read [references/update-workshop-item.md](references/update-workshop-item.md). Load the matching game context and update the selected owned item's description through the signed-in Steam client first, then SteamCMD, with an available authenticated browser as a fallback under the reference's conditions. Edit the latest changelog or post a public update comment only when the user explicitly requests each action. Reuse existing local documents as already unslopped; apply `unslop` only to new or explicitly edited copy. Configuring this skill does not authorize publication.
 
 Examples:
 

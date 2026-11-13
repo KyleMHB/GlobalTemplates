@@ -20,7 +20,7 @@ After resolving the game, read only its matching context before choosing package
 | Wayward | `379210` | [games/wayward.md](games/wayward.md) |
 | RimWorld | `294100` | [games/rimworld.md](games/rimworld.md) |
 
-Select routes separately for content upload, item creation, metadata, and change notes. Use SteamCMD first where supported. A recorded limitation within the same scope is sufficient reason to use the specified browser or in-game route without repeating a failed attempt. Unverified means the route needs investigation, not that it is unsupported. Recheck conflicting evidence or behavior affected by game/tool updates against current official documentation or the installed publisher. For an unlisted game, establish its publishing route before uploading. These files guide tool choice; they do not expand the requested actions.
+Select routes separately for content upload, item creation, metadata, and change notes. For an existing item, use the [Steam client route](#steam-client-route) first, then SteamCMD. A game context written before the client route existed that says "SteamCMD first" for an action means client route first, SteamCMD second. Item creation has no client route here: use SteamCMD or the in-game publisher. A recorded limitation within the same scope is sufficient reason to use the specified browser or in-game route without repeating a failed attempt. Unverified means the route needs investigation, not that it is unsupported. Recheck conflicting evidence or behavior affected by game/tool updates against current official documentation or the installed publisher. For an unlisted game, establish its publishing route before uploading. These files guide tool choice; they do not expand the requested actions.
 
 Keep each game context short, with identity and review date, a publishing-routes table, game-specific constraints, and evidence links. Label capabilities as documented, observed, or unverified. Record observations with the item, date, relevant game/tool version when known, and what was actually verified. Reserve unsupported claims for evidence establishing that limit. Keep shared authentication, gallery, comment, and verification rules here rather than duplicating them in every game file.
 
@@ -58,6 +58,28 @@ Completion: applicable documents, upload package, preview, screenshot assets, no
 
 Apply the game context's route for content and creation. When it selects the in-game publisher, follow the installed game's publishing procedure and accepted package layout. Inspect any description, preview, tags, or visibility that the game submits alongside content and reconcile them with the prepared sources and requested scope before submission. Verify the returned item ID and preserve the game's identity file; persist a verified new ID in project identity metadata and relevant links. After an uncertain creation, inspect the game's result, identity file, logs, and owner's items before retrying. If the game cannot be operated with available tools, leave the release prepared and explain the specific user action required.
 
+## Steam client route
+
+`scripts/publish_via_client.py` updates an existing item through the running, signed-in Steam client, using the Steamworks API in the game's own `steam_api` library. This is the route in-game uploaders use. It never signs in, so the desktop client stays connected.
+
+Why it comes first: SteamCMD signs in as a second Steam client. Steam keeps one client session per account on a PC, so each SteamCMD login signs the user's desktop client out ("Session Replaced" in Steam's `logs/connection_log.txt`), and the client does not reconnect by itself. Observed 2026-11-13.
+
+```text
+python <skill-dir>/scripts/publish_via_client.py --steam-api <game-dir>/steam_api64.dll --app-id <verified-app-id> --item-id <verified-item-id> [--content <release-folder>] [--preview <image>] [--description-file <description-path>] [--title <title>] [--tags "<tag>,<tag>"] [--visibility public|friends|private|unlisted] [--changenote-file <note-path>] [--expect-steam-id <owner-steamid64>] [--dry-run]
+```
+
+- Pass only the fields being published; anything omitted is left as it is. `--tags` replaces the item's whole tag list, so read the live tags first and pass the complete set.
+- Find the library in the game's install folder (`steam_api64.dll` on Windows, `libsteam_api.so` or `libsteam_api.dylib` elsewhere) and use a Python of the same bitness. Pass `--expect-steam-id` when the owner's SteamID64 is known, so a different signed-in account is refused before anything is sent.
+- Run `--dry-run` first. It checks the inputs and that the client is online, and sends nothing.
+- The Steam client must be running and online. When the script reports it offline, ask the user to reconnect (Steam menu, Go Online) rather than switching route. While the script runs, Steam shows the account as playing the game.
+- It cannot create an item, add gallery images or post comments.
+- Exit codes: 0 Steam reported success, 1 Steam reported a failure, 2 outcome unknown (check the live item before any retry), 3 refused before sending.
+- A reported success is not proof of each field. Verify the live item as in [Verify and finish](#verify-and-finish).
+
+Use SteamCMD for an existing item only when this route cannot do the action: no Steam client on the machine, a library without the flat API, or a failure that a retry will not fix. Before any SteamCMD login, tell the user it will sign their desktop Steam client out, and afterwards remind them to reconnect it.
+
+## SteamCMD route
+
 Use the following VDF procedure only for actions whose selected route is SteamCMD. For a metadata-only step, omit `contentfolder` and unrelated fields; treat change notes according to the game context rather than assuming a successful metadata update saved them.
 
 Follow the platform-aware SteamCMD discovery, authentication, and fallback rules in [update-workshop-item.md](update-workshop-item.md). Let the user enter credentials or Steam Guard themselves if needed. Keep passwords and codes out of arguments, files, logs, and chat.
@@ -81,11 +103,11 @@ In an authenticated owner session, run `workshop_build_item <absolute-vdf-path>`
 
 After an uncertain creation, check the rewritten VDF, upload logs, and owner's recent items before retrying. If identity remains unknown, stop for resolution instead of another zero-ID upload. Allow one corrected retry of a confirmed failed update under the existing verification rules.
 
-An available authenticated browser is a fallback for supported metadata/media actions after a concrete SteamCMD blocker or a recorded game-context limitation for that action. It substitutes for a binary upload only if the game's actual owner interface supports uploading content. Otherwise use the established in-game route or preserve the prepared package and report the blocker.
+An available authenticated browser is a fallback for supported metadata/media actions after a concrete blocker on both the client route and SteamCMD, or a recorded game-context limitation for that action. It substitutes for a binary upload only if the game's actual owner interface supports uploading content. Otherwise use the established in-game route or preserve the prepared package and report the blocker.
 
 ## Gallery and public comment
 
-SteamCMD's documented VDF supports the main preview, not gallery images or public comments. For screenshots, prefer an authenticated Steamworks tool with additional-preview operations. Otherwise use the owner's signed-in gallery editor through available browser tools as a capability fallback and explain that reason. Check the gallery to avoid duplicates and preserve existing images unless replacement is intended.
+Neither the client script nor SteamCMD's documented VDF handles gallery images or public comments; both support the main preview. For screenshots, prefer an authenticated Steamworks tool with additional-preview operations. Otherwise use the owner's signed-in gallery editor through available browser tools as a capability fallback and explain that reason. Check the gallery to avoid duplicates and preserve existing images unless replacement is intended.
 
 After the release succeeds, post the saved comment using [Optional public update comment](update-workshop-item.md#optional-public-update-comment). `publish` includes this action by default unless excluded. Available authenticated browser tools are the capability fallback for comments; a SteamCMD change note is a separate feature. Follow the account/item checks, duplicate prevention, and live verification. After a failed release, leave the draft without announcing success. If the comment already exists, report it rather than posting twice.
 

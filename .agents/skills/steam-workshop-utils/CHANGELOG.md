@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-13
+
+### Added
+
+- Added `scripts/publish_via_client.py`, which updates an existing Workshop item (content, preview, title, description, tags, visibility, change note) through the running Steam client. A tag update has been verified on a live item; the other fields have not been sent through it yet.
+
+### Changed
+
+- Made the signed-in Steam client the first publishing route for existing items, with SteamCMD second, because each SteamCMD login signs the desktop Steam client out.
+- Recorded observed RimWorld publishing results, including that SteamCMD cannot set tags and leaves a new item without version tags.
+
 ## 2026-11-08
 
 ### Changed

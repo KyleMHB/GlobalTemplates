@@ -1,16 +1,17 @@
 # RimWorld Workshop context
 
 App ID: `294100`  
-Reviewed: 2026-10-06  
-No local RimWorld publisher or game-specific SteamCMD submission was tested for this context.
+Reviewed: 2026-11-13  
+Observed on item `3838124135` with SteamCMD `1794425457` and RimWorld 1.7.5005. The in-game publisher was not used.
 
 ## Publishing routes
 
 | Action | Route | Status and limits |
 | --- | --- | --- |
-| Upload mod content or create an item | Establish SteamCMD compatibility; use the in-game publisher when its game-managed metadata is needed | Unverified for SteamCMD in RimWorld. Ludeon documents game upload behavior and supported-version tagging, but the current publisher UI and its creation/update controls still need inspection. |
-| Update description or main preview | SteamCMD first after confirming compatibility; browser fallback | Documented generic Valve fields; game-specific behavior is unverified. Verify each live result. |
-| Publish a change note | Submit with a supported content-release route, then verify | Unverified for RimWorld. Generic `changenote` support does not prove that a metadata-only submission creates an entry. Do not carry Wayward's observed failure over to this game. |
+| Update content, description, main preview, title or visibility of an existing item | Steam client route (`scripts/publish_via_client.py` with the game's `steam_api64.dll`); SteamCMD second | Client route: a tag-only update was observed working 2026-11-13 and left the desktop client signed in; content, description, preview, title and visibility have not been sent through it yet, so verify the first of each closely. SteamCMD: observed working 2026-11-12 and 2026-11-13 for content, description and preview, and a download of the live item matched the uploaded folder byte for byte. Each SteamCMD login signed the desktop Steam client out. |
+| Set tags | Steam client route with `--tags`; in-game publisher otherwise | SteamCMD's documented VDF has no tag field, and the item it created had no tags (observed 2026-11-13). Established RimWorld mods carry `Mod` plus one tag per supported version, such as `1.6` and `1.7`. Pass the full set: `Mod` and every version in `supportedVersions`. Observed working through the client route 2026-11-13: the live item then showed `Mod`, `1.6` and `1.7`, with content, description and visibility unchanged. |
+| Create an item | SteamCMD; in-game publisher when its game-managed metadata is needed | SteamCMD creation observed working 2026-11-12, writing the ID back to the VDF. The new item has no tags; set them afterwards. The in-game publisher's controls remain uninspected. |
+| Publish a change note | Submit with the content update, then verify | Sent with a SteamCMD content update 2026-11-13; the live change-note entry was not checked. Generic `changenote` support does not prove that a metadata-only submission creates an entry. Do not carry Wayward's observed failure over to this game. |
 | Repair an existing change note | Browser owner editor when available | Unverified for a RimWorld item. Check that the owner controls support the requested edit. |
 
 Gallery images and public comments follow the shared publishing workflow. The Workshop web page is not an established binary-upload route.
@@ -20,7 +21,8 @@ Gallery images and public comments follow the shared publishing workflow. The Wo
 - Preserve the mod folder's `About/About.xml` and version-specific content layout. Ludeon documents shared root content and version directories for multi-version mods; inspect the project's current loading configuration before packaging.
 - Treat `supportedVersions` in `About/About.xml` as declared game compatibility, not the mod's release version. The game's uploader applies corresponding Workshop tags according to Ludeon's documentation. Verify those tags after upload; the generic SteamCMD VDF has no documented field that reproduces this game-specific step.
 - Resolve the existing item from project evidence. Check `About/PublishedFileId.txt` when present and verify its value against the live item; its handling by the current publisher remains unverified here. Preserve the existing identity file on updates.
-- Before selecting SteamCMD for content or creation, establish the accepted package path and how required game-managed tags and metadata will be retained. If unresolved, prepare the release and inspect the in-game publisher rather than guessing an upload format.
+- Upload the mod folder itself as the content folder: the folder holding `About/`, `LoadFolders.xml` and the version folders, as it sits in the game's `Mods` directory. Observed working 2026-11-12.
+- After any creation or content upload that did not go through the in-game publisher, read the live tags and set the version tags if they are missing.
 
 ## Evidence
 

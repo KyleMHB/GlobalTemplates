@@ -128,7 +128,7 @@ Check the `SKILL.md` frontmatter and relative references. Use the active harness
 Run script syntax checks:
 
 ```bash
-python -m py_compile scripts/sync_workshop.py scripts/report_workshop.py
+python -m py_compile scripts/sync_workshop.py scripts/report_workshop.py scripts/publish_via_client.py
 ```
 
 Run report generation against a fixture DB or a previously synced DB:
