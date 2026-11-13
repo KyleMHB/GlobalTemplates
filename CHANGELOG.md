@@ -2,6 +2,12 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
+## 2026-11-13
+
+### Added
+
+- Added the Contact Sheet tool under `tools/` and its `contact-sheet` skill, which render before-and-after sheets of artwork for sharing.
+
 ## 2026-11-12
 
 ### Added
