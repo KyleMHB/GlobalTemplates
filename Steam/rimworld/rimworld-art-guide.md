@@ -157,13 +157,13 @@ Choose the style anchor from where the mod will be played. For a modpack, measur
 
 The vanilla traits below are the ones to check a family against, using the [measured vanilla rendering](#measured-vanilla-rendering). Contour and shape count are the safest to adopt; shading and colour are the author's call:
 
-- **Contour:** black, unbroken, 2px at 64 pixels per cell for buildings and resources (up to 3px stays within vanilla's range), and 1–1.5px on weapons, as the strict outline figures measure it. This is the trait most worth stating in every generation request: it is cheap to state, easy to measure, and a mod's own approved pieces are often thinner than they look at preview size, so do not take them as the outline reference for new art. The figure guides generation and is reported beside candidates; it never reopens art the author has approved.
+- **Contour:** black, unbroken, 2px at 64 pixels per cell for buildings and resources (up to 3px stays within vanilla's range), and 1–1.5px on weapons, as the strict outline figures measure it. This is the trait most worth stating in every generation request: it is cheap to state, easy to measure, and a mod's own approved pieces are often thinner than they look at preview size, so do not take them as the outline reference for new art. The figure guides generation, the [outward outline layer](#outward-outline-layer) brings candidates to it, and it is reported beside them; it never reopens art the author has approved.
 - **Shading:** a few large shapes with smooth shading. Many small flat facets with hard edges and white highlight streaks read as generated, even when each piece looks good alone at preview size.
 - **Colour:** a default for mods without their own rule: keep the saturated end of a fixed-colour object near 0.7 or below, because full saturation glows against terrain. A project's house style overrides it.
 - **Shape count:** vanilla objects are a handful of parts. Ornament that disappears at game zoom adds noise, not identity.
 - **One rendering for the whole mod:** families may differ in motif, silhouette and hue. They should not differ in contour weight, shading method or detail density.
 
-Do not correct a whole mod with a deterministic filter. A filter that caps saturation, blurs facets and thickens contours can hit the vanilla numbers while adding artefacts, washing out colour and removing the character that made the good pieces good. Matching measurements is not the same as looking right. Regenerate the pieces that depart most from the house style, when the author asks for a redo. Do not run outline passes either: thickening, redrawing or blackening a contour after generation tends to turn thin parts into black spikes. Meet the contour through generation, or ship the art as drawn once approved.
+Do not correct a whole mod with a deterministic filter. A filter that caps saturation, blurs facets and thickens contours can hit the vanilla numbers while adding artefacts, washing out colour and removing the character that made the good pieces good. Matching measurements is not the same as looking right. Regenerate the pieces that depart most from the house style, when the author asks for a redo. Do not run outline passes either: thickening, redrawing or blackening a contour after generation tends to turn thin parts into black spikes. Fix contour width with an [outward outline layer](#outward-outline-layer) instead.
 
 ### Outline defaults
 
@@ -171,14 +171,28 @@ These follow from the [strict outline figures](#measured-vanilla-rendering) and 
 
 1. **Black:** every channel 25 of 255 or below. A darker shading band inside the line is fill, not outline.
 2. **Unbroken** around the silhouette, except edges cut by the canvas or hidden behind a wall.
-3. **Inside** the silhouette: the line's outer edge is the alpha edge, so it never changes silhouette, framing or mask extent.
+3. **Inside** the silhouette: the line's outer edge is the alpha edge, so it never changes silhouette, framing or mask extent. An [outward outline layer](#outward-outline-layer) is the exception: it adds width outside.
 4. **Width:** buildings and resource stacks 2.0–3.0px; weapons 1.0–2.0px.
 5. **Even:** local width varies by 1.0px or less.
 6. **Material boundaries:** a black line of 1.0–2.0px. No lines between facets of the same material; those edges are value changes.
 7. **Thin parts** under 8px wide (a shard, post or haft) use about 1.5px, so the line never fills the part and a small spiky piece does not read heavy.
 8. **Nothing else at the edge:** no second keyline, light rim, glow or drop shadow.
 
-State the width in source pixels in the generation request (target width ÷ the planned export scale) and measure after export. These are generation targets reported beside a candidate, never a reason to change approved art ([approval is final](#2-approve-one-master-design)).
+State the width in source pixels in the generation request (target width ÷ the planned export scale) and measure after export. These are targets reported beside a candidate, never a reason to change approved art ([approval is final](#2-approve-one-master-design)).
+
+#### Outward outline layer
+
+Image models draw their own contour width whatever the request says, and a strong export reduction thins it further. Generation still asks for the contour, because the model must draw a black exterior and material lines, but its width is then fixed with an outward layer, not with another outline-only edit call.
+
+- Plan the layer on the full-size source and carry it onto the canvas with the export's own mapping. Put it **under** the export, so the art's fill never changes and its soft edge sits on black.
+- Fill to the target: the new outer edge lies the target width from the object's body (its fill, closed across material lines). A thin or uneven line is brought up to it.
+- Trim to the target so a whole set matches: remove only black or soft-edge pixels reachable from outside that lie beyond the target, measured from the body with narrow hollows closed. Where a part's internal line merges with the exterior line, that black stays. Keep a sharp point only where the drawn outline had one, and round off the point left where a trimmed stretch meets line that needed no trim. This is the one change to the art's own pixels, and only to its outer black line.
+- Mitre convex corners of the added line so sharp shapes stay sharp, but never at corners made by a crop cutting the art. Leave a sliver of background in notches narrower than the new lines, and fill any pocket the layer closes off.
+- Ignore stray alpha specks and light pixels inside an old line, or each gets a ring of new line.
+- Keep the layer editable, like a material mask, and treat the result as the candidate the author approves. Run it on approved art only for pieces the author names.
+- It cannot reach lines between materials. A return missing its exterior or material lines is a design failure, so regenerate it.
+
+Lumen Stones implements this as `tools/artwork.py outline-layer` (`docs/rimworld-art-guide.md#outline-layer` in that repository).
 
 ### Weapon orientation
 
