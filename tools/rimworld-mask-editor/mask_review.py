@@ -228,9 +228,111 @@ def clear_request(path, root=ROOT):
     write_reviews(reviews, root)
 
 
+TINTS = {"dark": (0.2, 0.2, 0.2), "light": (1.0, 0.95, 0.83)}  # same values as the editor's tint preview
+
+
+def pending_views(current=False, root=ROOT):
+    """Yield (key, label, colour, mask, note) for each view of every pending review.
+
+    Current recipes use their production textures; other recipes are exported to a fresh work folder."""
+    reviews = read_reviews(root)
+    recipes = current_recipes(root)
+    for key, entry in reviews.items():
+        if entry.get("status") != "pending":
+            continue
+        if current and review_context(key, recipes) != "current approved":
+            continue
+        note = entry.get("note", "")
+        if key in recipes:
+            for label, direction, _, color, mask in recipes[key]:
+                yield key, f"{label} / {direction}", color, mask, note
+        elif entry.get("kind") == "image":
+            yield key, key, root / key, root / entry["mask"], note
+        else:
+            manifest = json.loads((root / key).read_text(encoding="utf-8"))
+            (root / "work").mkdir(exist_ok=True)
+            folder = Path(tempfile.mkdtemp(prefix="mask-review-", dir=root / "work"))
+            subprocess.run([sys.executable, str(Path(__file__).with_name("export-layered-artwork.py")),
+                            str(root / key), "--output", str(folder)], capture_output=True, text=True, check=True)
+            yield key, f"{key} (candidate export)", folder / manifest["colorFilename"], \
+                folder / manifest["maskFilename"], note
+
+
+def render_sheet(output, current=False, root=ROOT, cell=200):
+    """Write one row per pending view: colour, mask, dark tint and light tint."""
+    from PIL import Image, ImageDraw, ImageFont
+    rows = list(pending_views(current, root))
+    try:
+        font, small = ImageFont.truetype("arial.ttf", 13), ImageFont.truetype("arial.ttf", 11)
+    except OSError:
+        font = small = ImageFont.load_default()
+    label_w, columns = 300, ("colour", "mask", "dark tint", "light tint")
+    sheet = Image.new("RGBA", (label_w + cell * len(columns), 30 + cell * max(1, len(rows))), (60, 62, 66, 255))
+    draw = ImageDraw.Draw(sheet)
+    for i, name in enumerate(columns):
+        draw.text((label_w + i * cell + 8, 8), name, fill="white", font=font)
+    for r, (key, label, color_path, mask_path, note) in enumerate(rows):
+        y = 30 + r * cell
+        draw.rectangle([0, y, sheet.width, y + cell - 2], fill=(52, 54, 58, 255) if r % 2 else (60, 62, 66, 255))
+        draw.text((8, y + 8), f"{r + 1}. {label}", fill="white", font=font)
+        line, line_y = "", y + 30
+        for word in note.split():
+            if draw.textlength(f"{line} {word}", font=small) > label_w - 16:
+                if line_y > y + cell - 34:
+                    break
+                draw.text((8, line_y), line, fill=(200, 200, 200), font=small)
+                line, line_y = word, line_y + 14
+            else:
+                line = f"{line} {word}".strip()
+        draw.text((8, line_y), line, fill=(200, 200, 200), font=small)
+        with Image.open(color_path) as a, Image.open(mask_path) as b:
+            color, coverage = a.convert("RGBA"), b.convert("RGBA").getchannel("R")
+        channels = color.split()
+        blank = Image.new("L", color.size, 0)
+        views = [color, Image.merge("RGBA", (coverage, blank, blank, channels[3]))]
+        for tint in TINTS.values():
+            tinted = [Image.composite(c.point(lambda v, k=k: round(v * k)), c, coverage)
+                      for c, k in zip(channels[:3], tint)]
+            views.append(Image.merge("RGBA", (*tinted, channels[3])))
+        box = channels[3].getbbox()
+        for i, view in enumerate(views):
+            view = view.crop(box) if box else view
+            view.thumbnail((cell - 12, cell - 12), Image.LANCZOS)
+            tile = Image.new("RGBA", (cell - 6, cell - 6), (110, 112, 116, 255))
+            tile.alpha_composite(view, ((tile.width - view.width) // 2, (tile.height - view.height) // 2))
+            sheet.alpha_composite(tile, (label_w + i * cell + 3, y + 3))
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    sheet.convert("RGB").save(output)
+    return output, len(rows)
+
+
+def approve_all(words, skip=(), current=False, root=ROOT):
+    """Record the user's bulk approval for every pending review except `skip`, masks unchanged."""
+    if not words.strip():
+        raise ValueError("Record the user's own words with --words")
+    skip = {relative(path, root) for path in skip}
+    done = []
+    for key, label, color, mask, _ in pending_views(current, root):
+        if key in skip or any(key == k for k, _ in done):
+            continue
+        record_reviewed(color, mask, recipe=root / key if key.endswith(".json") else None, key=key,
+                        before_bytes=Path(mask).read_bytes(), changed_pixels=0, root=root)
+        reviews = read_reviews(root)
+        reviews[key]["note"] = f"{reviews[key].get('note', '')} User bulk approval: \"{words.strip()}\"".strip()
+        write_reviews(reviews, root)
+        done.append((key, label))
+    return done
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("add", "clear", "list", "promote"))
+    parser.add_argument("action", choices=("add", "clear", "list", "promote", "sheet", "approve-all"))
+    parser.add_argument("--output", type=Path, default=Path("work/mask-review-sheet.png"),
+                        help="sheet: where to write the contact sheet")
+    parser.add_argument("--words", default="", help="approve-all: the user's approval, verbatim")
+    parser.add_argument("--except", dest="skip", action="append", type=Path, default=[],
+                        help="approve-all: a pending review to leave pending (repeatable)")
     parser.add_argument("path", nargs="?", type=Path, help="Colour PNG or recipe JSON")
     parser.add_argument("--mask", type=Path, help="Matching mask when its name is nonstandard")
     parser.add_argument("--note", default="", help="What to inspect")
@@ -247,6 +349,13 @@ def main():
                 reviews = {k: v for k, v in reviews.items() if v.get('status') == 'pending'
                            and review_context(k, recipes) == 'current approved'}
             print(json.dumps(reviews, indent=2, ensure_ascii=False))
+        elif args.action == "sheet":
+            output, count = render_sheet(args.output if args.output.is_absolute() else ROOT / args.output,
+                                         args.current)
+            print(f"{count} pending views -> {output}")
+        elif args.action == "approve-all":
+            for key, label in approve_all(args.words, args.skip, args.current):
+                print("Reviewed:", key, "<-", label)
         elif not args.path:
             parser.error("add and clear need a colour PNG or recipe JSON")
         elif args.action == "add":
