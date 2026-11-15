@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import queue
 import re
@@ -24,6 +25,69 @@ from editor_project import ROOT, settings
 
 def words(name):
     return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", name.replace("_", " ").replace("-", " ")).strip()
+
+
+def export_records(folder):
+    # scandir reuses directory-listing metadata, which is much cheaper than rglob plus stat on large work trees.
+    # Skip links and junctions: test game installs link back to the mod, which made the scan walk the mod repeatedly.
+    pending = [folder]
+    while pending:
+        try:
+            with os.scandir(pending.pop()) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False) and not entry.is_junction():
+                        pending.append(entry.path)
+                    elif entry.name == "export.json":
+                        yield Path(entry.path), entry.stat().st_mtime
+        except OSError:
+            continue
+
+
+def verified_export(record, data):
+    manifest = Path(data["manifest"]).resolve()
+    if not manifest.is_file() or sha256(manifest) != data["manifestSha256"]:
+        return None
+    sources = data["layers"] + [data[name] for name in ("paintedMask", "paintedColor") if name in data]
+    if any(not (manifest.parent / source["path"]).is_file() or sha256(manifest.parent / source["path"]) != source["sha256"]
+           for source in sources):
+        return None
+    color = record.parent / Path(data["color"]["path"]).name
+    mask = record.parent / Path(data["mask"]["path"]).name
+    if not color.is_file() or not mask.is_file():
+        return None
+    if sha256(color) != data["color"]["sha256"] or sha256(mask) != data["mask"]["sha256"]:
+        return None
+    return color, mask
+
+
+def latest_exports(folder, manifests):
+    """Return the newest verified export for each wanted manifest, hashing only until one passes."""
+    candidates, resolved = {}, {}
+    for record, mtime in export_records(folder):
+        try:
+            data = json.loads(record.read_text(encoding="utf-8"))
+            if data["manifest"] not in resolved:
+                resolved[data["manifest"]] = Path(data["manifest"]).resolve()
+            manifest = resolved[data["manifest"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if manifest in manifests:
+            candidates.setdefault(manifest, []).append((mtime, record, data))
+    exports = {}
+    for manifest, records in candidates.items():
+        for mtime, record, data in sorted(records, key=lambda entry: entry[0], reverse=True):
+            try:
+                result = verified_export(record, data)
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            if result:
+                exports[manifest] = (mtime, *result)
+                break
+    return exports
+
+
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def artwork_items(root=ROOT):
@@ -74,32 +138,10 @@ def artwork_items(root=ROOT):
             items.append({"name": label, "group": "In mod", "detail": "Approved image" if approved else "Mod texture",
                           "image": image, "mask": mask if mask.is_file() else None})
 
-    exports = {}
-    for record in (root / "work").rglob("export.json"):
-        try:
-            data = json.loads(record.read_text(encoding="utf-8"))
-            manifest = Path(data["manifest"]).resolve()
-            if not manifest.is_file() or hashlib.sha256(manifest.read_bytes()).hexdigest() != data["manifestSha256"]:
-                continue
-            sources = data["layers"] + [data[name] for name in ("paintedMask", "paintedColor") if name in data]
-            if any(not (manifest.parent / source["path"]).is_file()
-                   or hashlib.sha256((manifest.parent / source["path"]).read_bytes()).hexdigest() != source["sha256"]
-                   for source in sources):
-                continue
-            color = record.parent / Path(data["color"]["path"]).name
-            mask = record.parent / Path(data["mask"]["path"]).name
-            if not color.is_file() or not mask.is_file():
-                continue
-            if hashlib.sha256(color.read_bytes()).hexdigest() != data["color"]["sha256"] or hashlib.sha256(mask.read_bytes()).hexdigest() != data["mask"]["sha256"]:
-                continue
-            old = exports.get(manifest)
-            if old is None or record.stat().st_mtime > old[0]:
-                exports[manifest] = (record.stat().st_mtime, color, mask)
-        except (OSError, ValueError, KeyError, TypeError):
-            continue
-    for manifest in (root / "artwork/design-sources").glob("*/master.json"):
-        if manifest.parent.name in project.get("supersededDesigns", []):
-            continue
+    designs = [manifest for manifest in (root / "artwork/design-sources").glob("*/master.json")
+               if manifest.parent.name not in project.get("supersededDesigns", [])]
+    exports = latest_exports(root / "work", {manifest.resolve() for manifest in designs})
+    for manifest in designs:
         try:
             data = json.loads(manifest.read_text(encoding="utf-8"))
             exported = exports.get(manifest.resolve())
