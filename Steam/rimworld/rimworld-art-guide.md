@@ -212,6 +212,12 @@ Make objects recognizable through their outer shape and a few large divisions. K
 
 Use a few principal light/body/shadow values per material while preserving antialiasing and modest variation. Avoid photographic lighting or noisy texture added for a large preview. Make crystalline materials read through angular shape and broad planes rather than flame-like gradients. Give housings readable rims, depth and material joins under construction tint.
 
+### Painted light direction
+
+Working convention recorded 2026-11-13 from visual inspection of vanilla fixture shading: use broad, soft light from above and slightly toward the upper-left of the image, roughly the 10–11 o'clock direction. Top surfaces are generally brightest, upper-left-facing surfaces lighter, and opposing/right-facing surfaces darker. Follow the geometry rather than assigning every front face the same value.
+
+For generation or a blockout, a light elevation around 45–60 degrees above the horizontal is a practical starting approximation. Both this elevation and the image-space direction are visual estimates, not measured vanilla settings or an official fixed global light angle. Keep the camera's downward viewing angle separate from the light elevation. Sprite shading is painted into the artwork; construction tint changes colour, not the direction of that painted shading. Preserve approved lighting unless the user requests a redo, and allow directional sprites to remain plausible when mirrored.
+
 ### Camera and family consistency
 
 Match approved camera, depth, lighting, contour weight and detail density. Keep each family's distinctive motifs and silhouettes. A taller object is not a front-view illustration placed on the map, and a horizontal view is not automatically a rotated vertical painting. Project designs decide palettes, parts, footprint exceptions and protected assets.
