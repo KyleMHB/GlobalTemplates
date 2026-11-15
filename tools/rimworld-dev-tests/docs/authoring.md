@@ -21,12 +21,10 @@ Use the mod's wrapper and project paths, for example:
 
 ```powershell
 dotnet build DevTests/MyMod.DevTests.csproj -c Release
-python tools/mymod_test.py run mymod-batch --seed 1
-python tools/mymod_test.py close-session
-python tools/mymod_test.py release-check
+python tools/mymod_test.py run mymod-batch mymod-other --seed 1
 ```
 
-`run` reuses an idle launcher-owned process; each batch gets a disposable colony. Close the session before changing loaded DLLs. A runtime mismatch requires deliberate deployment under the mod's rules. Never attach to a user's colony. Read `summary.txt` first, then relevant cases in `report.json` and log excerpts. The summary counts logged errors and lists passing cases that ran over them; each case's evidence holds the first lines, and the run folder has a copy of `Player.log`. Errors containing the settings class's `ErrorMarker` count as the mod's own, so give a mod with a short or common name a distinctive marker. Set `FailOnModErrors` to make such an error fail the run. Evidence is under `work/userdata/<argPrefix>/<evidenceFolder>` in this checkout; `latest` reads it without launching a game.
+`run` reuses an idle launcher-owned process; each batch gets a disposable colony. Name several batches in one `run`: it groups them by mod set, so batches that share a set share a launch. Leave the session open for the next run. Close it (`close-session`) before changing loaded DLLs or running `release-check`, or when the user wants RimWorld closed. A runtime mismatch requires deliberate deployment under the mod's rules. Never attach to a user's colony. Read `summary.txt` first, then relevant cases in `report.json` and log excerpts. The summary counts logged errors and lists passing cases that ran over them; each case's evidence holds the first lines, and the run folder has a copy of `Player.log`. Errors containing the settings class's `ErrorMarker` count as the mod's own, so give a mod with a short or common name a distinctive marker. Set `FailOnModErrors` to make such an error fail the run. Evidence is under `work/userdata/<argPrefix>/<evidenceFolder>` in this checkout; `latest` reads it without launching a game.
 
 ## Mod sets
 

@@ -23,4 +23,4 @@ Keywords: session, focus, background, minimized, seed, random, research, wildlif
 
 The focus/minimize behavior was observed in game on 2026-11-07, RimWorld 1.7.5000. The shared runner was verified with Core, Harmony and one mod only; a passing small set is not proof that it works on a large modpack.
 
-Project instructions control run counts, deployment and mod-list changes. Preserve user saves, restore temporary configuration, close the owned session and check developer DLL cleanup. Full modpack compatibility remains separate from isolated-mod results.
+Project instructions control run counts, deployment and mod-list changes. Preserve user saves, restore temporary configuration, and leave the owned session open at the main menu for the next run. Close it before rebuilding or `release-check`, or when the user wants RimWorld closed; then check developer DLL cleanup. Full modpack compatibility remains separate from isolated-mod results.

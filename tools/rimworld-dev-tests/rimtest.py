@@ -2,11 +2,12 @@
 
 Configured per mod by a devtests.json file:
 
-  python rimtest.py --config <mod>/DevTests/devtests.json run <batch|run-all> [--mods SET] [--seed N] [--timeout S] [--startup-timeout S] [--quit-on-finish] [--keep-open]
+  python rimtest.py --config <mod>/DevTests/devtests.json run <batch...|run-all> [--mods SET] [--seed N] [--timeout S] [--startup-timeout S] [--quit-on-finish] [--keep-open]
   python rimtest.py --config ... close-session | latest [--batch B] | list | self-check | prune [--keep N] | release-check [mod_dir] | install-dev | remove-dev
 
 `run` reuses an idle launcher-owned RimWorld session at the main menu, or launches one, and sends the batch to it. The game
-window stays open with the progress panel; finish with close-session, which also removes the DevTests DLL.
+window stays open with the progress panel; finish with close-session, which also removes the DevTests DLL. Several batches
+run in one command, grouped by mod set so batches that share a set share one launch.
 --quit-on-finish and --keep-open use a single fresh process instead.
 
 Mod lists: the game runs with -savedatafolder=work/userdata/<argPrefix>, so the player's ModsConfig, Prefs, mod settings
@@ -609,6 +610,26 @@ def run_session(config, batch, seed, timeout, mod_set=None, startup_timeout=300,
         return 3
 
 
+def run_batches(config, batches, seed, timeout, mod_set=None, startup_timeout=300):
+    """Run batches in the reusable session, grouped by mod set so each set launches once. Keeps going after test failures
+    (exit 1); stops at a refusal, timeout or launcher fault, since later batches would hit the same problem."""
+    order = list(dict.fromkeys(mod_set or config.batch_mod_sets.get(b, DEFAULT_SET) for b in batches))
+    queue = sorted(dict.fromkeys(batches), key=lambda b: order.index(mod_set or config.batch_mod_sets.get(b, DEFAULT_SET)))
+    results = []
+    for batch in queue:
+        print(f"\n=== {batch} (mod set {mod_set or config.batch_mod_sets.get(batch, DEFAULT_SET)})", flush=True)
+        code = run_session(config, batch, seed, timeout, mod_set, startup_timeout)
+        results.append((batch, code))
+        if code >= 2:
+            break
+    print("\nBatches:")
+    for batch, code in results:
+        print(f"  {batch}: {'PASS' if code == 0 else 'FAIL' if code == 1 else f'stopped (exit {code})'}")
+    for batch in queue[len(results):]:
+        print(f"  {batch}: not run")
+    return max(code for _, code in results)
+
+
 def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, graceful=True):
     manifest, saves_before, prefs_before = snapshot(config)
     check_batch(config, batch, manifest)
@@ -694,7 +715,7 @@ def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, gra
     if failure or timed_out or report is None or not ready:
         print_diagnostics(config, run_dir)
         return 2
-    print("RimWorld is at the main menu, ready for the next batch. Use close-session when finished.")
+    print("RimWorld is at the main menu, ready for the next batch. Leave it open; close-session only before rebuilding or release-check.")
     return result_code(report, problems)
 
 
@@ -986,13 +1007,13 @@ def run_command(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     guide = commands.add_parser("guide", help="agent instructions and searchable setup recipes; no game or config needed")
     guide.add_argument("topic", nargs="?", default="index", choices=GUIDE_TOPICS, help="read only the relevant topic")
-    launch = commands.add_parser("run", help="run a batch, or run-all; reuse the runner session or launch one")
-    launch.add_argument("batch")
+    launch = commands.add_parser("run", help="run batches, or run-all; reuse the runner session or launch one")
+    launch.add_argument("batch", nargs="+", help="one or more batches, run grouped by mod set; or run-all")
     launch.add_argument("--mods", metavar="SET", help="mod set from devtests.json, or full for the player's list (default: the batch's set)")
     launch.add_argument("--seed", type=int, default=1)
     launch.add_argument("--timeout", type=int, default=900,
                         help="wall-clock seconds for the whole command, game startup included; the game closes the run with a report "
-                             f"{DEADLINE_GRACE} s before it and is killed at it. Raise it for run-all: each batch may take up to its own limit (15 minutes by default)")
+                             f"{DEADLINE_GRACE} s before it and is killed at it. With several batches it applies to each one. Raise it for run-all: each batch may take up to its own limit (15 minutes by default)")
     launch.add_argument("--startup-timeout", type=int, default=300, help="seconds a newly launched game has to load with the runner ready")
     launch.add_argument("--quit-on-finish", action="store_true", help="use a fresh process and close it after the run")
     launch.add_argument("--record", action="store_true", help="record the game window to build.mp4 in a fresh process")
@@ -1027,6 +1048,11 @@ def run_command(argv=None):
             parser.error("--keep-open and --quit-on-finish cannot be combined")
         if (args.ffmpeg or args.show_ui) and not args.record:
             parser.error("--ffmpeg and --show-ui only apply with --record")
+        if len(args.batch) > 1 and (RUN_ALL in args.batch or args.keep_open or args.quit_on_finish or args.record):
+            parser.error("several batches run only in the reusable session, without run-all, --keep-open, --quit-on-finish or --record")
+        if len(args.batch) > 1:
+            return run_batches(config, args.batch, args.seed, args.timeout, args.mods, args.startup_timeout)
+        args.batch = args.batch[0]
         if args.keep_open or args.quit_on_finish or args.record:
             return run_once(config, args.batch, args.seed, args.timeout, args.keep_open, args.record, args.ffmpeg, args.show_ui, args.mods,
                             args.startup_timeout)

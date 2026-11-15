@@ -40,6 +40,7 @@ From the mod root, for example:
 dotnet build DevTests/MyMod.DevTests.csproj -c Release
 python tools/mymod_test.py run run-all --seed 1 --timeout 1800
 python tools/mymod_test.py run mymod-batch --seed 1
+python tools/mymod_test.py run mymod-batch mymod-other --seed 1
 python tools/mymod_test.py close-session
 python tools/mymod_test.py release-check
 python tools/mymod_test.py list
