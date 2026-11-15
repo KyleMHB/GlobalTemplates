@@ -10,7 +10,7 @@ The sheet comes from `tools/contact-sheet/contact_sheet.py` in the Templates rep
 A row is one item. Its images run oldest to newest, and the last one is the version being shown off.
 
 - **The versions are files on disk or known commits.** Use `--item`. Each image is a path, the name of an image tracked by git (`SunstoneArray`), or `REV:path` for a committed version.
-- **The versions are the file's own git history.** Use `--history COUNT`, which takes the last COUNT distinct versions and captions each with the date it was committed.
+- **The versions are the file's own git history.** Use `--history COUNT`, which takes the last COUNT distinct versions and captions each with the date it was committed. Name a row with `"Floor torch=path/to/Lamp.png"` when the file name is not what players call the item.
 
 Items may hold different numbers of versions. When the sheet has `--labels`, give every item the same number of versions, repeating an image for an item that did not change; the sheet marks it `=` and "unchanged".
 

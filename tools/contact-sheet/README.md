@@ -16,7 +16,7 @@ python contact_sheet.py -o sheet.png --labels Before After --item "Sunstone arra
 | --- | --- |
 | `-o`, `--output` | Where to write the PNG. Required. |
 | `--item LABEL IMAGE...` | A row: its label, then its images, oldest first. Repeat for more rows. |
-| `--history COUNT IMAGE...` | A row per image with its last COUNT distinct versions from git, captioned by commit date. |
+| `--history COUNT IMAGE...` | A row per image with its last COUNT distinct versions from git, captioned by commit date. Write `LABEL=IMAGE` to name the row; otherwise the file name is used. |
 | `--labels TEXT...` | Version names, oldest first. One per version. |
 | `--layout NAME` | `cards`, `hero` or `grid`. See [Layouts](#layouts). |
 | `--title`, `--subtitle`, `--footer` | Optional text. A single row with no title uses its label as the title. |

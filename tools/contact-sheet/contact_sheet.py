@@ -373,7 +373,8 @@ def main():
         if not count.isdigit() or not sources:
             parser.error("--history takes a count, then one or more images")
         for source in sources:
-            name = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", Path(source).stem)  # SunstoneVessel -> Sunstone Vessel
+            name, _, source = source.rpartition("=")  # "Floor torch=Textures/.../Lamp.png" names the row
+            name = name or re.sub(r"(?<=[a-z])(?=[A-Z])", " ", Path(source).stem)  # SunstoneVessel -> Sunstone Vessel
             items.append((name, history(source, int(count))))
     if not items:
         parser.error("give at least one --item or --history")
