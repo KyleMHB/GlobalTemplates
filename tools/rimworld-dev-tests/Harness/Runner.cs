@@ -358,7 +358,7 @@ internal class Controller
                         while (r.Simulate && r.NextTick < Math.Min(now, r.Deadline) && clock.Elapsed.TotalMilliseconds < FrameBudgetMs)
                         {
                             Tick(r);
-                            r.NextTick += 1d / 60;
+                            r.NextTick += 1d / (60 * r.Speed);
                         }
                         if (Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency >= r.Deadline) { EndWait(); break; }
                         return;

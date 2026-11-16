@@ -64,10 +64,14 @@ public abstract class Wait
     // Saves a runner-owned game and loads it again. Must be the last wait of its segment.
     public static Wait Reload() => new ReloadWait();
     public static Wait Recorder() => new RecordingWait();
-    public static Wait Seconds(double seconds, bool simulate = false)
+    public static Wait Seconds(double seconds, bool simulate = false) => Seconds(seconds, simulate, 1);
+    // Waits real seconds. With simulate, ticks at game speed (60 a second) times speed, so a 3x window still draws frames
+    // between its ticks while taking a third of the real time. Speed 1 is game pace, for recordings. A separate overload, so
+    // case assemblies built against the two-argument form keep binding.
+    public static Wait Seconds(double seconds, bool simulate, double speed)
     {
         double now = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
-        return new RealtimeWait { Deadline = now + seconds, NextTick = now, Simulate = simulate };
+        return new RealtimeWait { Deadline = now + seconds, NextTick = now, Simulate = simulate, Speed = speed };
     }
 }
 
@@ -78,7 +82,7 @@ public class UntilWait : Wait { public Func<bool> Condition; public int Remainin
 public class FrameWait : Wait { public int Remaining; }
 public class ReloadWait : Wait { }
 public class RecordingWait : Wait { }
-public class RealtimeWait : Wait { public double Deadline, NextTick; public bool Simulate; }
+public class RealtimeWait : Wait { public double Deadline, NextTick, Speed = 1; public bool Simulate; }
 
 public class BatchContext
 {
