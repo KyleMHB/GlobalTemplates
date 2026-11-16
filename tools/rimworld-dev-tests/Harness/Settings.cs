@@ -45,6 +45,8 @@ public abstract class HarnessSettings
     // Hooks. Each runs on the game thread.
     public virtual void BeforeTick() { }
     public virtual void MaintainSetup(BatchContext context) { }
+    // Runs before the shared perf batch measures, so the mod's content is on the map and doing its normal work.
+    public virtual IEnumerable<Wait> PerfSetup(BatchContext context) => Enumerable.Empty<Wait>();
     public virtual void OnFrame() { }
     public virtual void OnRunEnd(string status) { }
     public virtual string[] ExtraRuntimeExclusions => Array.Empty<string>();
@@ -87,7 +89,7 @@ public static class Batches
     }
 
     private static Dictionary<string, Batch> Create() =>
-        new Batch[] { new DiagnosticBatch(), new DiagnosticAutosaveBatch(), new DiagnosticCancelBatch(), new DiagnosticStallBatch() }
+        new Batch[] { new DiagnosticBatch(), new DiagnosticAutosaveBatch(), new DiagnosticCancelBatch(), new DiagnosticStallBatch(), new PerfBatch() }
             .Concat(Harness.Settings.CreateBatches()).ToDictionary(b => b.Id);
 
     public static IEnumerable<string> RunAll => new[] { "diagnostic" }.Concat(Harness.Settings.RunAll);

@@ -987,6 +987,7 @@ GUIDE_TOPICS = {
     "beds": "docs/recipes/beds.md",
     "measurements": "docs/recipes/measurements.md",
     "environment": "docs/recipes/environment.md",
+    "perf": "docs/recipes/perf.md",
     "maintaining": "docs/maintaining.md",
     "recording": "docs/recording.md",
 }

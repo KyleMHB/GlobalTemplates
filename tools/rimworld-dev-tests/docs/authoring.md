@@ -37,6 +37,7 @@ The launcher starts RimWorld with `-savedatafolder=work/userdata/<argPrefix>`, s
 
 - A batch uses its `batchModSets` entry, otherwise `default` (required). `run-all` uses the union of `default` and every mapped set; unmapped sets are optional variants for `--mods <set>`.
 - List packageIds in load order, DLCs included. The launcher refuses a set with an uninstalled mod, a missing dependency or a `loadAfter`/`loadBefore` violation; it never adds or reorders mods.
+- The shared `perf` batch runs with an unmapped `perf` set that adds Dubs Performance Analyzer; see `guide perf`.
 - `--mods full` uses the player's active list and mod settings, adding the mod under test if missing.
 - Mod settings start at defaults. A set that needs other values reads `DevTests/modsettings/<set>/Mod_*.xml`. Settings are process-wide, so `run-all` refuses to merge sets when any of them has a settings folder; run those batches separately.
 - A mod that installs a built package rather than its repository layout sets `"runtimeRoot"` (for example `artifacts/package/<Mod>`). The installed mod is compared with that folder, and `productionDll` is relative to it.

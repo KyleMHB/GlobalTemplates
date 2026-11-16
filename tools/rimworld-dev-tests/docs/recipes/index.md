@@ -11,6 +11,7 @@ Search this index by symptom, required state or game type. Read only the matchin
 | Meditation, joy full, Meditate ends, psyfocus | [game facts](../game-facts.md#pawns-beds-and-rooms) | Holding psyfocus cannot measure its natural gain |
 | Worker, work priority, research, bills, job never starts | `Harness/Kit.cs` (`Worker`) | Shared `Kit.Worker` |
 | Apparel never picked up, optimize apparel, outfit policy, wear, gear up | [game facts](../game-facts.md#pawns-beds-and-rooms) | Put test apparel in a stockpile |
+| Performance, ms per tick, Dubs Performance Analyzer, lag | [Perf](perf.md) | Shared `perf` batch; needs a `perf` mod set |
 | Stat offset, quality, pain, clamp, age, gear | [game facts](../game-facts.md#stats) | Versioned facts; use an adult subject for offset ratios |
 
 To add or revise a recipe, use [maintenance](../maintaining.md). Store expected mod behavior and run histories in the owning mod; link the evidence here.
