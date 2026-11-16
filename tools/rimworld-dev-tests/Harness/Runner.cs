@@ -403,7 +403,24 @@ internal class Controller
         Harness.Settings.MaintainSetup(ctx);
         w.AfterTick?.Invoke();
         WallCheck();
+        UpdateRotations();
         SnapDrawPositions();
+    }
+
+    // 2026-11-16: the runner ticks with the game paused, so TicksThisFrame is 0 and Map.MapUpdate's PostTickVisuals pass returns
+    // early. That pass is the only caller of Pawn_RotationTracker.UpdateRotation after spawning, so every pawn kept its spawn
+    // facing (North) and was recorded walking east facing north (Spearfishing ticket 33). Facing is brought back for all maps
+    // after each tick; the rest of that pass (footprints, ripples, jitter) is not. Unlike SnapDrawPositions this is game state:
+    // Pawn.Rotation is saved and read by jobs, and real play updates it every frame in which ticks ran, so this matches play.
+    private static void UpdateRotations()
+    {
+        var maps = Find.Maps;
+        for (int m = 0; m < maps.Count; m++)
+        {
+            var pawns = maps[m].mapPawns.AllPawnsSpawned;
+            for (int i = 0; i < pawns.Count; i++)
+                if (!pawns[i].Suspended) pawns[i].rotationTracker?.UpdateRotation();
+        }
     }
 
     // 2026-11-07: at the runner's speed (many ticks per frame) the per-frame draw tween lagged walking pawns by several cells and

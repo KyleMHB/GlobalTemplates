@@ -4,7 +4,7 @@ Search this index by symptom, required state or game type. Read only the matchin
 
 | Need or search terms | Read | Availability |
 | --- | --- | --- |
-| Wall, blocked cell, footprint, interaction cell, sliding, tween | [Placement](placement.md) | Shared validation/observer |
+| Wall, blocked cell, footprint, interaction cell, sliding, tween, facing, rotation, walking backwards | [Placement](placement.md) | Shared validation/observer; shared facing update |
 | Bed, patient, LayDown, downed, CurrentBed, asleep, prisoner room | [Beds](beds.md) | Mod-local helpers; game facts shared |
 | Prerequisite, guard, setup failure, coverage, control, reload | [Measurements](measurements.md) | Shared `Kit.Require`, `Wait.While`, `SkipUnlessPassed` |
 | Session, focus, minimize, seed, research lost, wild animals, modpack, mod list, ModsConfig, foreign patch before startup, conflict gate | [Environment](environment.md) | Shared runner plus local modpack examples |

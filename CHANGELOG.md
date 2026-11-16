@@ -2,6 +2,12 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
+## 2026-11-16
+
+### Fixed
+
+- Pawns in RimWorld Dev Tests runs and recordings now face the way they walk. Ticks run while the game is paused skip vanilla's facing update, so before this every pawn kept its spawn facing (north) and appeared to walk backwards or sideways.
+
 ## 2026-11-13
 
 ### Added
