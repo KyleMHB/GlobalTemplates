@@ -14,6 +14,8 @@ Use only the branch relevant to the task. Project instructions own design choice
 
 The test harness, **RimWorld Dev Tests**, is bundled in `tools/rimworld-dev-tests`. Each mod supplies its adapter and cases and points its build and wrapper at that folder. Its short guide routes to setup pitfalls, evidence and a workflow for retaining discoveries. Read that guide instead of loading every source or recipe.
 
+Every mod must pass two performance tests before release: the harness's `perf` batch, which measures its Dubs Performance Analyzer ms/tick, and its own `perf.*` cases, which time each patched or event-driven path with `PerfTiming` at a stated scale. `release-check` fails when the `perf` batch or any of those cases has not passed, and warns when the mod has none; see `guide perf`.
+
 Before a first build or run, set the machine's game paths as its README's "Local paths" describes. Keep mod-specific rules and evidence in their owning repository. Add reusable artwork guidance here and reusable testing discoveries to the harness recipes, with version scope, evidence and limits.
 
 ## Translatable by default

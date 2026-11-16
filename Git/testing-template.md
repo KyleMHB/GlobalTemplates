@@ -32,7 +32,7 @@ Updated through: [version or milestone] on YYYY-MM-DD
 ## Result recording
 ~~~
 
-Include only applicable scenarios. Each procedure should state preconditions, exact commands or actions, expected result, current status, caveats, and cleanup.
+Include only applicable scenarios. A RimWorld mod always includes a performance test: the harness `perf` batch (`run perf --mods perf`) with its recorded ms/tick, which release requires, and the mod's `perf.*` cases with each path's scale, budget and measured cost. Each procedure should state preconditions, exact commands or actions, expected result, current status, caveats, and cleanup.
 
 ## Result format
 

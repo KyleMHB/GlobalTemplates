@@ -855,6 +855,53 @@ def release_problems(config, mod_dir):
     return problems
 
 
+PERF_BATCH, PERF_CASE, DUBS_ID = "perf", "perf.mod-tick", "dubwise.dubsperformanceanalyzer.steam"
+
+
+def perf_problems(config, mod_dir):
+    """Every mod must pass the shared perf batch and its own perf.* cases on the DLL it ships.
+    Returns (problems, passing summaries, warnings)."""
+    command = f"run {PERF_BATCH} --mods {PERF_BATCH}"
+    if DUBS_ID not in config.mod_sets.get(PERF_BATCH, []):
+        return [f"no '{PERF_BATCH}' mod set with Dubs Performance Analyzer ({DUBS_ID}) in devtests.json; add one (guide perf), then {command}"], [], []
+    shipped = Path(mod_dir) / config.production_dll.relative_to(config.runtime_root)
+    if not shipped.is_file():
+        return [f"production DLL missing: {shipped}"], [], []
+    listed = known_batches(config, sha256(config.dev_build)) if config.dev_build.is_file() else None
+    if listed is None:
+        return [f"no batch list from the current DevTests build; build DevTests, then {command} (it writes the list)"], [], []
+    targeted = {case: batch["id"] for batch in listed.get("batches") or [] if batch.get("id") != PERF_BATCH
+                for case in batch.get("cases") or [] if case.startswith("perf.") and case != PERF_CASE}
+    wanted = {PERF_CASE: command, **{case: f"run {batch}" for case, batch in targeted.items()}}
+    found, shipped_hash = {}, sha256(shipped)
+    for folder in reversed(run_dirs(config)):
+        if len(found) == len(wanted):
+            break
+        try:
+            report = json.loads((folder / "report.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for case in report.get("cases") or []:
+            if case.get("Id") in wanted and case.get("Id") not in found:
+                found[case["Id"]] = (folder.name, report, case)
+    problems, passed = [], []
+    for case_id, run in wanted.items():
+        if case_id not in found:
+            problems.append(f"no run of {case_id}; {run}")
+            continue
+        name, report, case = found[case_id]
+        if (report.get("modBuild") or {}).get("sha256") != shipped_hash:
+            problems.append(f"newest {case_id} run {name} measured a different {shipped.name}; {run}")
+        elif case.get("Result") != "pass":
+            problems.append(f"{case_id} in run {name} did not pass ({case.get('Result')}): {case.get('Reason') or case.get('Evidence') or 'see report.json'}")
+        elif case_id == PERF_CASE:
+            passed.append(f"{case_id} {(case.get('Observed') or {}).get('modMsPerTick', '?')} ms/tick in run {name}")
+        else:
+            passed.append(f"{case_id} in run {name}")
+    warnings = [] if targeted else ["no targeted perf.* cases; time the mod's patched and event-driven paths with PerfTiming (guide perf)"]
+    return problems, passed, warnings
+
+
 # ---- Evidence -----------------------------------------------------------------------------------------------------------
 
 RUN_FILES = ("report.json", "progress.json", "deployment.json")
@@ -1021,7 +1068,7 @@ def run_command(argv=None):
     launch.add_argument("--ffmpeg", type=Path, help="FFmpeg build with gfxcapture support")
     launch.add_argument("--show-ui", action="store_true", help="keep the normal game HUD visible in recordings")
     launch.add_argument("--keep-open", action="store_true", help="fresh process, left paused after the run; close it to finish cleanup")
-    check = commands.add_parser("release-check", help="verify a mod folder contains no developer test runner")
+    check = commands.add_parser("release-check", help="verify a mod folder contains no developer test runner and its DLL passed the perf batch and its perf.* cases")
     check.add_argument("mod_dir", nargs="?", type=Path)
     commands.add_parser("close-session", help="close the idle runner session and remove the developer DLL")
     show = commands.add_parser("latest", help="print the latest run's summary, or that it has no report, without launching RimWorld")
@@ -1071,12 +1118,18 @@ def run_command(argv=None):
             parser.error("--keep must be at least 1")
         return prune(config, args.keep)
     if args.command == "release-check":
-        problems = release_problems(config, args.mod_dir or config.mod_dir)
-        for problem in problems:
+        mod_dir = args.mod_dir or config.mod_dir
+        problems = release_problems(config, mod_dir)
+        perf, measured, warnings = perf_problems(config, mod_dir)
+        for problem in problems + perf:
             print("FAIL:", problem)
         if not problems:
-            print("PASS: no developer test runner in", args.mod_dir or config.mod_dir)
-        return 1 if problems else 0
+            print("PASS: no developer test runner in", mod_dir)
+        for line in measured if not perf else []:
+            print("PASS: perf", line)
+        for warning in warnings:
+            print("WARN:", warning)
+        return 1 if problems or perf else 0
     if args.command == "install-dev":
         missing = [str(build) for build in config.developer_builds if not build.is_file()]
         if missing:

@@ -1,8 +1,15 @@
-# Measuring a mod's tick cost
+# Measuring a mod's performance
 
-Keywords: performance, perf, ms per tick, Dubs Performance Analyzer, profiler, lag, TPS.
+Keywords: performance, perf, ms per tick, Dubs Performance Analyzer, profiler, lag, TPS, Stopwatch, PerfTiming, patch overhead, raid, pawn generation.
 
 Players quote a mod's cost as Dubs Performance Analyzer's "Av" column: average milliseconds per tick, such as "0.01 ms". The shared `perf` batch (`Harness/PerfBatches.cs`) produces that figure for the mod's production assembly. Every adapter has it; nothing is needed beyond a mod set.
+
+A mod's performance test has two parts:
+
+1. **The tick baseline:** the shared `perf` batch, which every mod runs unchanged.
+2. **Targeted cases:** the mod's own `perf.*` cases, which time the paths a tick average misses. A patch on pawn generation, a raid handler or a map-load hook runs rarely, so its average over 1800 ticks is near zero even when one call stalls the game. Time the path directly with `PerfTiming` at the scale a player meets (see [Targeted timing](#targeted-timing)).
+
+`release-check` fails when `devtests.json` has no `perf` set containing Dubs, when the current DevTests build has never been launched (the game writes the case list at start), or when the newest run of `perf.mod-tick` or of any case whose Id starts with `perf.` did not pass on the production DLL in the released folder. It warns when the mod has no targeted `perf.*` cases. Rerun them after every rebuild you intend to ship. On success it prints each case's run ID and the ms/tick figure.
 
 ## Running it
 
@@ -39,7 +46,31 @@ The evidence lists the ten most expensive methods by self time with calls per ti
 
 - Ticks only. Draw, GUI and update-loop cost (`Update` and `GUI` categories in Dubs) are not measured.
 - The figure depends on what `PerfSetup` builds. Compare runs only with the same setup, seed and mod set.
-- The pass result means a measurement was taken. There is no shared budget; a mod that wants one asserts it in its own batch from the report or its spec.
+- The pass result means a measurement was taken. There is no shared budget; budgets belong in the mod's targeted cases and spec.
 - Dubs is driven by reflection over internal members, verified against Dubs 1.6.0.1's RimWorld 1.7 build on 2026-11-16 (Lumen Stones run `20261116-113653-perf-s1-7981cf67`: 1778 methods patched, 1800 ticks recorded, 0.0039 ms/tick on a bare quickstart colony). Its RimWorld 1.6 build lacks `Profiler.ChildAverage`, so there the case reports environment unavailable. A Dubs update that renames a member does the same and names the missing member. If that becomes a maintenance burden, ask Dubs's author for a public entry point covering these members.
 - A mod batch with Id `perf` collides with this one; choose another Id.
 - An early exit after patching starts cleanup without waiting for it; the next run waits before measuring.
+
+## Targeted timing
+
+`PerfTiming` (`Harness/PerfTiming.cs`) times code with a Stopwatch, without Dubs, so targeted cases run in the mod's normal mod set.
+
+- `PerfTiming.MsPerCall(call, calls)` returns the median ms per call over five rounds, after warmup. Use it for the mod's own methods.
+- `PerfTiming.PatchCost(original, call, calls)` measures what the mod's Harmony patches add to a game method. Rounds alternate between patched and with the production assembly's patches on `original` removed; other mods' patches stay applied. The patches are restored with their owner, priority and ordering before it returns. It throws `SetupException` when the mod has no patch on `original`.
+- `cost.Report(c, scale, situation)` records `addedMsPerCall`, `patchedMsPerCall`, `unpatchedMsPerCall`, `scale` and `addedMsAtScale`, with evidence lines.
+
+For each patched or event-driven path, add a case with an Id starting `perf.` to one of the mod's batches:
+
+```csharp
+var c = ctx.Begin("perf.pawn-generation");
+var request = new PawnGenerationRequest(PawnKindDefOf.Drifter, Faction.OfAncients, forceGenerateNewPawn: true, canGeneratePawnRelations: false);
+var original = AccessTools.Method(typeof(PawnGenerator), nameof(PawnGenerator.GeneratePawn), new[] { typeof(PawnGenerationRequest) });
+var cost = PerfTiming.PatchCost(original, () => Find.WorldPawns.PassToWorld(PawnGenerator.GeneratePawn(request), PawnDiscardDecideMode.Discard), calls: 50);
+cost.Report(c, scale: 150, situation: "one large raid");
+c.Expect("addedMsAtScale", "< 5").Check(cost.AddedMsPerCall * 150 < 5, "patch adds too much to a large raid");
+```
+
+- Choose the scale from a real situation: pawns in a large raid, things on a busy map, items in a full stockpile. State it in the case so the figure can be judged.
+- Take the budget from the mod's spec. Many mods load together, so a cost that seems small alone still adds up; budget each path well under what a player would notice.
+- Clean up what the timed call creates, as the example discards each pawn, or later rounds measure a growing world. Force new pawns, or the generator may hand back existing world pawns.
+- Timing is noisy. Use enough calls for each round to take several milliseconds, and compare runs on the same machine and setup.

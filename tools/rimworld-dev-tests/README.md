@@ -11,7 +11,7 @@ Each mod adds a `DevTests/` folder:
 1. Create a developer-only project outside the production solution and package output. Set `DevTestsProductionDll`, then import `RimWorldDevTests.props`. The import adds game references and a project reference to the shared runner. Its default paths target a standard Steam install of RimWorld 1.7 and Workshop Harmony; see [Local paths](#local-paths) to change them.
 2. Implement one `HarnessSettings` subclass with the mod name, argument prefix, package ID, production type, batches and run-all order. The shared DLL requires exactly one loaded settings subclass per process.
 3. Write batches using `Batch`, `BatchContext`, `Wait` and `Kit`. Expected values belong in the mod's own specification. Reload waits must end their segment; persist cross-reload measurements through `ctx.Remember`/`ctx.Recall`.
-4. Add `DevTests/devtests.json` matching the settings, including `modSets` with a `default` mod list (see [Mod sets](docs/authoring.md#mod-sets)). Add a short Python wrapper in the mod, such as `tools/mymod_test.py`, that runs this folder's `rimtest.py` with `--config DevTests/devtests.json`.
+4. Add `DevTests/devtests.json` matching the settings, including `modSets` with a `default` mod list and an unmapped `perf` set that adds Dubs Performance Analyzer (see [Mod sets](docs/authoring.md#mod-sets) and [Perf](docs/recipes/perf.md)). Add a short Python wrapper in the mod, such as `tools/mymod_test.py`, that runs this folder's `rimtest.py` with `--config DevTests/devtests.json`.
 
 Both projects target the installed 1.7 runtime. Keep production compatibility targets separate. Shared output stays in `bin/`; mod developer output stays outside `Assemblies/`. No developer DLL belongs in a release package.
 
@@ -58,7 +58,7 @@ Exit codes: 0 pass, 1 failures or isolation breach, 2 timeout, interrupted run, 
 
 `--quit-on-finish` runs a fresh process that exits after the batch. `--keep-open` leaves a fresh process paused at completion until you close it. `install-dev` installs both DLLs and a marker file for Dev mode > Debug actions > Developer tests. Close the game and use `remove-dev` afterwards.
 
-The launcher refuses unrelated games and mismatched installed files. It installs both developer DLLs, checks user saves and autosave preferences, and removes the DLLs on `close-session` or fresh-process completion. If the launcher is stopped before it can remove them, the DLLs stay in the mod folder but do nothing in a game the launcher did not start; the next run or `remove-dev` removes them. Runtime manifests exclude both developer DLLs; separate hashes identify them. `release-check` rejects any DevTests DLL or marker in the target package.
+The launcher refuses unrelated games and mismatched installed files. It installs both developer DLLs, checks user saves and autosave preferences, and removes the DLLs on `close-session` or fresh-process completion. If the launcher is stopped before it can remove them, the DLLs stay in the mod folder but do nothing in a game the launcher did not start; the next run or `remove-dev` removes them. Runtime manifests exclude both developer DLLs; separate hashes identify them. `release-check` rejects any DevTests DLL or marker in the target package, and fails unless the mod's production DLL in that package passed the `perf` batch and every `perf.*` timing case the mod defines. It warns when the mod defines none (see [Perf](docs/recipes/perf.md)).
 
 ## Shared behavior and limits
 

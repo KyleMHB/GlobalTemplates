@@ -4,6 +4,15 @@
 
 ## 2026-11-16
 
+### Added
+
+- Added a shared `perf` batch to RimWorld Dev Tests that drives Dubs Performance Analyzer and reports a mod's average ms per tick, the figure players quote. Each mod enables it with a `perf` mod set.
+- Added `PerfTiming` to RimWorld Dev Tests for timing code the tick average misses, such as patches on pawn generation. It can measure what a mod's Harmony patches add to a game method by timing with them applied and removed.
+
+### Changed
+
+- RimWorld Dev Tests `release-check` now fails unless the released production DLL passed the `perf` batch and the mod's own `perf.*` timing cases, so every mod is performance-tested before release. It warns when a mod has no `perf.*` cases.
+
 ### Fixed
 
 - Pawns in RimWorld Dev Tests runs and recordings now face the way they walk. Ticks run while the game is paused skip vanilla's facing update, so before this every pawn kept its spawn facing (north) and appeared to walk backwards or sideways.
