@@ -1035,6 +1035,7 @@ GUIDE_TOPICS = {
     "measurements": "docs/recipes/measurements.md",
     "environment": "docs/recipes/environment.md",
     "perf": "docs/recipes/perf.md",
+    "patches": "docs/recipes/patches.md",
     "maintaining": "docs/maintaining.md",
     "recording": "docs/recording.md",
 }

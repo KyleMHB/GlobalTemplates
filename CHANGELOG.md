@@ -2,7 +2,17 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
-## 2026-11-16
+## 2026-11-17
+
+### Added
+
+- Added a RimWorld Dev Tests recipe for checking that a mod's Harmony patches are still applied after a dependency update (`guide patches`).
+
+### Changed
+
+- The testing template replaces its smoke test with test tiers: Quick for each change, Visual for art, and Full at seams such as a merge to main, a dependency or game update, or a release. The agent instructions now save the full suite for those seams.
+- The RimWorld Dev Tests authoring guide and environment recipe now cover state that leaks between batches, uncaught exceptions the error count misses, pass counts that include screenshots or skips, per-batch timing, batch variants, unique evidence file names, and DLCs that dependencies expect.
+
 
 ### Added
 

@@ -14,7 +14,8 @@ From this directory, run `python rimtest.py guide [topic]`. No mod config or gam
 | Patient leaving bed, downing, sleep, prisoner beds | `beds` | [Beds](docs/recipes/beds.md) |
 | Guard a measurement; classify a setup failure | `measurements` | [Measurements](docs/recipes/measurements.md) |
 | Measure a mod's ms per tick with Dubs | `perf` | [Perf](docs/recipes/perf.md) |
-| Session, background execution, modpack interference | `environment` | [Environment](docs/recipes/environment.md) |
+| Check a mod's Harmony patches are applied | `patches` | [Patches](docs/recipes/patches.md) |
+| Session, background execution, modpack interference, state leaking between batches | `environment` | [Environment](docs/recipes/environment.md) |
 | Record a run or investigate capture startup | `recording` | [Recording](docs/recording.md) |
 | Preserve a new learning or promote shared code | `maintaining` | [Maintenance](docs/maintaining.md) |
 

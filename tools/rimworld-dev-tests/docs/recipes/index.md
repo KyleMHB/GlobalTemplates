@@ -12,6 +12,8 @@ Search this index by symptom, required state or game type. Read only the matchin
 | Worker, work priority, research, bills, job never starts | `Harness/Kit.cs` (`Worker`) | Shared `Kit.Worker` |
 | Apparel never picked up, optimize apparel, outfit policy, wear, gear up | [game facts](../game-facts.md#pawns-beds-and-rooms) | Put test apparel in a stockpile |
 | Performance, ms per tick, Dubs Performance Analyzer, lag, Stopwatch, patch overhead | [Perf](perf.md) | Shared `perf` batch with a `perf` mod set, plus the mod's own `perf.*` cases timed with `PerfTiming` |
+| Harmony patch silently off, patch count, dependency update, target renamed | [Patches](patches.md) | Mod-local technique; shared `PatchCounts` proposed |
+| Def or setting leaked between batches, setup missing in a later batch, DLC missing from a mod set | [Environment](environment.md) | `HarnessSettings.OnBatchEnd`; mod-local helpers |
 | Stat offset, quality, pain, clamp, age, gear | [game facts](../game-facts.md#stats) | Versioned facts; use an adult subject for offset ratios |
 
 To add or revise a recipe, use [maintenance](../maintaining.md). Store expected mod behavior and run histories in the owning mod; link the evidence here.

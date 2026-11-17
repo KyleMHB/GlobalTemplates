@@ -28,6 +28,7 @@ A project's own instructions for testing and verification take precedence over t
 - Define completion by observable requested behavior. A passing build alone does not establish that the feature works.
 - Verify with the existing build, relevant existing fast tests, and one focused check of the changed behavior where practical. Do not create test infrastructure.
 - After those checks pass, stop. Repeat or broaden verification only for a specific failure, subsequent code change, or concrete unresolved risk; seeking more confidence alone is insufficient.
+- Save the full suite, with the variants that run outside it (other mod or dependency sets, optional integrations), for seams: a feature branch merging to main, a dependency or game update, and a release. The project's `TESTING.md` or instructions name its tiers.
 - Do not turn unavailable tooling or unrelated failures into additional projects. Report the limitation accurately and finish all unaffected requested work.
 - Before delivering, compare the result with the original request. Complete missing in-scope behavior; report genuine blockers without claiming completion.
 - Keep architecture audits, compatibility matrices, benchmarks, evidence reports, and separate review or hardening passes opt-in unless explicitly required by the task.
