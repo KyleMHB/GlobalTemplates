@@ -10,6 +10,8 @@ python tools/mymod_test.py run mymod-batch --seed 1 --record --show-ui --ffmpeg 
 
 Use an installed FFmpeg build with the Windows `gfxcapture` filter. The launcher checks support before launch. Search order is an explicit `--ffmpeg`, PATH, the current project's `work/ffmpeg/ffmpeg.exe`, then the shared harness's `work/ffmpeg/ffmpeg.exe`. No download is automatic.
 
+This machine's shared copy is `work/ffmpeg/ffmpeg.exe` (with `ffprobe.exe`), FFmpeg 9.0.2 essentials from gyan.dev (`https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip`, sha256 checked, installed 2026-11-16); `work/` is ignored, so reinstall it there on another machine.
+
 The game pauses setup until the recorder confirms its first captured frame. `capture-*.json` markers coordinate readiness, failures and completion. The launcher retries capture start up to three times; failure stops the run rather than silently producing gameplay evidence without a recording. Inspect `recording.log`, `recording.json`, `build.mp4` and the normal report in the run directory. Recoverable raw footage remains when final conversion fails. Recording adds real CPU/GPU overhead; video duration is not an unrecorded regression runtime.
 
 `--show-ui` keeps the normal HUD visible; without it the recording hides that HUD in the runner-owned colony. The test progress panel remains a separate runner overlay. Escape cancels while the normal menu shortcut is hidden. `--keep-open` leaves the game paused after recording; close it to finish cleanup. Live game capture is version/platform dependent; passing recorder unit tests does not establish a successful recording on a different installation.
