@@ -12,6 +12,9 @@ public record PlannedCase(string Id, string Level, string ExpectedResult = null)
 public static class Levels
 {
     public const string PlayerWorkflow = "player-workflow", Mechanical = "mechanical", Diagnostic = "diagnostic";
+    // A case that only writes evidence, such as a screenshot or clip, and checks no behaviour. Reported apart from behaviour
+    // checks; it still fails the run when it fails.
+    public const string Evidence = "evidence";
 }
 
 // A batch is a fresh quickstart plus segments. Each segment yields waits; a Reload wait must end its segment,

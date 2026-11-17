@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using UnityEngine;
 
 namespace RimWorldDevTests;
 
@@ -16,6 +18,15 @@ public static class CaseErrors
     // Count so far of errors naming the mod under test (HarnessSettings.ErrorMarker).
     public static long ModMark { get { lock (Logged) return naming; } }
 
+    // Errors and exceptions logged through Verse.Log.Error on this thread right now. Unity reports those again through
+    // logMessageReceivedThreaded; the depth keeps them from being counted twice. A finalizer lowers it, because Log.Error stops
+    // calling Debug.LogError once the game's message limit is reached.
+    [ThreadStatic] private static int inLogError;
+    private static string[] modNames;
+
+    public static void EnterLogError() => inLogError++;
+    public static void ExitLogError() { if (inLogError > 0) inLogError--; }
+
     // Harmony prefix on Verse.Log.Error(string), bound by position. Never blocks the original.
     public static void Record(string __0)
     {
@@ -27,6 +38,45 @@ public static class CaseErrors
             if (__0 != null && __0.Contains(Harness.Settings.ErrorMarker)) naming++;
             if (Logged.Count > Kept) Logged.RemoveRange(0, Logged.Count - Kept);
         }
+    }
+
+    // Unity's log, on whichever thread logged. Counts errors and uncaught exceptions that didn't go through Verse.Log.Error,
+    // such as an exception thrown in a per-frame Harmony patch that the engine logs itself. One whose message or stack trace
+    // names the mod under test counts as the mod's own. Never logs: that would re-enter this handler.
+    public static void Unity(string condition, string stackTrace, LogType type)
+    {
+        if (type != LogType.Exception && type != LogType.Error || inLogError > 0 || !TestRunner.Running) return;
+        string text = (type == LogType.Exception ? "uncaught exception: " : "Unity error: ") + (condition ?? "");
+        bool mod = NamesMod(condition) || NamesMod(stackTrace);
+        lock (Logged)
+        {
+            Logged.Add((++next, text));
+            if (mod) naming++;
+            if (Logged.Count > Kept) Logged.RemoveRange(0, Logged.Count - Kept);
+        }
+        if (mod) StartupLog.Add(text);
+    }
+
+    // The ErrorMarker, or a frame in the production assembly: its name or one of its namespaces followed by a type. Namespaces the
+    // game also declares are left out.
+    private static bool NamesMod(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        if (text.Contains(Harness.Settings.ErrorMarker)) return true;
+        foreach (var name in modNames ??= ModNames()) if (text.Contains(name)) return true;
+        return false;
+    }
+
+    private static string[] ModNames()
+    {
+        var production = Harness.Settings.ProductionType.Assembly;
+        IEnumerable<string> namespaces;
+        try { namespaces = production.GetTypes().Select(t => t.Namespace); }
+        catch (ReflectionTypeLoadException ex) { namespaces = ex.Types.Where(t => t != null).Select(t => t.Namespace); }
+        var game = new[] { typeof(Verse.Log).Assembly, typeof(RimWorld.ThingDefOf).Assembly }
+            .SelectMany(a => a.GetTypes()).Select(t => t.Namespace).Where(n => n != null).ToHashSet();
+        return namespaces.Append(production.GetName().Name).Where(n => !string.IsNullOrEmpty(n) && !game.Contains(n))
+            .Distinct().Select(n => n + ".").ToArray();
     }
 
     // Where a case's window starts: since the batch's previous case finished, or since the case began if earlier.

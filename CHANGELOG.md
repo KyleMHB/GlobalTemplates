@@ -7,11 +7,16 @@
 ### Added
 
 - Added a RimWorld Dev Tests recipe for checking that a mod's Harmony patches are still applied after a dependency update (`guide patches`).
+- RimWorld Dev Tests has a `Levels.Evidence` case level for cases that only write a screenshot or clip. The summary and `report.json` count these separately from behaviour checks.
+- RimWorld Dev Tests summaries now list skipped cases as not covered. They also list registered batches outside `run-all` that the run didn't include, so a PASS no longer hides them.
+- Added `rimtest.py timings [run]`, which prints each batch's wall clock in a run, slowest first.
+- Added `Kit.PatchCounts(owner)` to RimWorld Dev Tests for counting a mod's Harmony patches per patch method.
 
 ### Changed
 
 - The testing template replaces its smoke test with test tiers: Quick for each change, Visual for art, and Full at seams such as a merge to main, a dependency or game update, or a release. The agent instructions now save the full suite for those seams.
-- The RimWorld Dev Tests authoring guide and environment recipe now cover state that leaks between batches, uncaught exceptions the error count misses, pass counts that include screenshots or skips, per-batch timing, batch variants, unique evidence file names, and DLCs that dependencies expect.
+- RimWorld Dev Tests error counts now include Unity errors and uncaught exceptions that never went through `Verse.Log.Error`, such as one thrown in a per-frame Harmony patch. An error that goes through both is counted once. One whose stack trace names the mod's assembly or namespaces counts toward `ModErrors` and `FailOnModErrors`, so runs that passed before may now report more errors.
+- The RimWorld Dev Tests authoring guide and environment recipe now cover state that leaks between batches, batch variants, unique evidence file names, and the DLCs that dependencies expect.
 
 
 ### Added

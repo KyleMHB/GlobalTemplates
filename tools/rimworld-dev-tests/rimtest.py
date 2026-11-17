@@ -3,7 +3,7 @@
 Configured per mod by a devtests.json file:
 
   python rimtest.py --config <mod>/DevTests/devtests.json run <batch...|run-all> [--mods SET] [--seed N] [--timeout S] [--startup-timeout S] [--quit-on-finish] [--keep-open]
-  python rimtest.py --config ... close-session | latest [--batch B] | list | self-check | prune [--keep N] | release-check [mod_dir] | install-dev | remove-dev
+  python rimtest.py --config ... close-session | latest [--batch B] | timings [run] | list | self-check | prune [--keep N] | release-check [mod_dir] | install-dev | remove-dev
 
 `run` reuses an idle launcher-owned RimWorld session at the main menu, or launches one, and sends the batch to it. The game
 window stays open with the progress panel; finish with close-session, which also removes the DevTests DLL. Several batches
@@ -942,6 +942,36 @@ def latest(config, batch=None):
     return 1
 
 
+def timings(config, run=None):
+    """Per-batch wall clock from a run's events.jsonl, slowest first. A batch runs from its first event to the next batch's
+    first event; the last one ends at the run's final event."""
+    if run:
+        folder = Path(run) if Path(run).is_dir() else config.evidence_root / run
+    else:
+        folder = next((d for d in reversed(run_dirs(config)) if (d / "events.jsonl").is_file()), None)
+    path = folder / "events.jsonl" if folder else None
+    if not path or not path.is_file():
+        print(f"No events.jsonl in {folder}." if folder else "No run with events.jsonl found.")
+        return 1
+    events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    starts = []
+    for event in events:
+        if event.get("batch") and (not starts or starts[-1][0] != event["batch"]):
+            starts.append((event["batch"], event["monotonicSeconds"]))
+    if not starts:
+        print(f"No batch events in {path}.")
+        return 1
+    end = events[-1]["monotonicSeconds"]
+    rows = [(batch, (starts[i + 1][1] if i + 1 < len(starts) else end) - start) for i, (batch, start) in enumerate(starts)]
+    total = end - events[0]["monotonicSeconds"]
+    width = max(len(batch) for batch, _ in rows)
+    print(f"Run {folder.name}")
+    for batch, seconds in sorted(rows, key=lambda row: -row[1]):
+        print(f"  {batch:<{width}}  {seconds:8.1f} s  {100 * seconds / total if total else 0:5.1f}%")
+    print(f"  {'total':<{width}}  {total:8.1f} s")
+    return 0
+
+
 def list_batches(config):
     print("Mod sets: " + ", ".join(list(config.mod_sets) + [FULL_SET]))
     try:
@@ -1074,6 +1104,8 @@ def run_command(argv=None):
     commands.add_parser("close-session", help="close the idle runner session and remove the developer DLL")
     show = commands.add_parser("latest", help="print the latest run's summary, or that it has no report, without launching RimWorld")
     show.add_argument("--batch")
+    timing = commands.add_parser("timings", help="per-batch wall clock of a run, slowest first, without launching RimWorld")
+    timing.add_argument("run", nargs="?", help="run folder name or path (default: the latest run)")
     commands.add_parser("list", help="list batches and mod sets without launching RimWorld")
     checker = commands.add_parser("self-check", help="run the runner's diagnostic batches and verify cancellation, time limits and recovery")
     checker.add_argument("--seed", type=int, default=1)
@@ -1110,6 +1142,8 @@ def run_command(argv=None):
         return close_session(config)
     if args.command == "latest":
         return latest(config, args.batch)
+    if args.command == "timings":
+        return timings(config, args.run)
     if args.command == "list":
         return list_batches(config)
     if args.command == "self-check":

@@ -130,9 +130,22 @@ public class Progress
         CoverageComplete && !(FailOnModErrors && ModErrors > 0) &&
         Cases.All(c => c.Diagnostic ? c.Result == c.ExpectedResult : c.Result is Results.Pass or Results.Skip);
 
+    // Behaviour checks: neither runner self-checks nor cases that only write evidence (Levels.Evidence).
+    private List<CaseRecord> Gameplay => Cases.Where(c => !c.Diagnostic && c.Level != Levels.Evidence).ToList();
+    private List<CaseRecord> EvidenceOnly => Cases.Where(c => !c.Diagnostic && c.Level == Levels.Evidence).ToList();
+
+    // Registered batches outside run-all that this run didn't include, so a PASS doesn't hide them. The runner's own
+    // diagnostics are left out; the shared perf batch and showcases are listed.
+    public List<string> UnscheduledBatches()
+    {
+        var scheduled = Batches.RunAll.Concat(Request.Batches).ToHashSet();
+        return Batches.All.Values.Where(b => !b.Diagnostic && !scheduled.Contains(b.Id)).Select(b => b.Id).OrderBy(id => id).ToList();
+    }
+
     public string ReportJson()
     {
-        var gameplay = Cases.Where(c => !c.Diagnostic).ToList();
+        var gameplay = Gameplay;
+        var evidence = EvidenceOnly;
         var diagnostic = Cases.Where(c => c.Diagnostic).ToList();
         object Counts(List<CaseRecord> list) => new Dictionary<string, int>
         {
@@ -144,7 +157,7 @@ public class Progress
             ["schema"] = 2, ["runId"] = RunId, ["status"] = Status, ["reason"] = Reason, ["overallPass"] = OverallPass,
             ["assertionsPass"] = AssertionsPass, ["coverageComplete"] = CoverageComplete,
             ["loggedErrors"] = LoggedErrors, ["modErrors"] = ModErrors, ["failOnModErrors"] = FailOnModErrors,
-            ["coverageGaps"] = gameplay.Where(c => c.Result == Results.Skip).GroupBy(c => c.CoverageReason ?? CoverageReasons.Unclassified).ToDictionary(g => g.Key, g => g.Count()),
+            ["coverageGaps"] = Cases.Where(c => !c.Diagnostic && c.Result == Results.Skip).GroupBy(c => c.CoverageReason ?? CoverageReasons.Unclassified).ToDictionary(g => g.Key, g => g.Count()),
             ["startedUtc"] = StartedUtc, ["finishedUtc"] = FinishedUtc, ["request"] = Request,
             ["game"] = Environment.GetValueOrDefault("game"), ["modBuild"] = Environment.GetValueOrDefault("modBuild"),
             ["environment"] = Environment,
@@ -152,11 +165,12 @@ public class Progress
             {
                 ["planned"] = BatchRecords.Sum(b => b.Planned.Count), ["completed"] = Cases.Count(c => c.Result != Results.Running),
                 ["pending"] = PendingCases().Count(), ["pendingBatches"] = PendingBatches().ToList(),
-                ["gameplay"] = Counts(gameplay), ["diagnostic"] = Counts(diagnostic),
+                ["gameplay"] = Counts(gameplay), ["evidence"] = Counts(evidence), ["diagnostic"] = Counts(diagnostic),
                 ["diagnosticMismatches"] = diagnostic.Count(c => c.Result != c.ExpectedResult),
             },
             ["batches"] = BatchRecords, ["cases"] = Cases,
             ["pending"] = PendingCases().Select(p => p.batch + "/" + p.id).ToList(),
+            ["unscheduledBatches"] = UnscheduledBatches(),
         };
         return JsonSerializer.Serialize(report, Options);
     }
@@ -168,10 +182,12 @@ public class Progress
         text.AppendLine($"{Harness.Settings.DisplayName} test run {RunId}: {Status.ToUpperInvariant()}, overall {(OverallPass ? "PASS" : "NOT PASSED")}");
         if (!string.IsNullOrEmpty(Reason)) text.AppendLine("Reason: " + Reason);
         text.AppendLine($"Request: {string.Join(", ", Request.Batches)} seed {Request.Seed} ({Request.Origin})");
-        var gameplay = Cases.Where(c => !c.Diagnostic).ToList();
+        string Line(List<CaseRecord> list) => $"{list.Count(c => c.Result == Results.Pass)} pass, {list.Count(c => c.Result == Results.Fail)} fail, " +
+                                                 $"{list.Count(c => c.Result == Results.Skip)} skip, {list.Count(c => c.Result == Results.Error)} error";
         text.AppendLine($"Assertions: {(AssertionsPass ? "no failures" : "NOT PASSED")}; coverage: {(CoverageComplete ? "complete for applicable cases" : "INCOMPLETE")}");
-        text.AppendLine($"Gameplay: {gameplay.Count(c => c.Result == Results.Pass)} pass, {gameplay.Count(c => c.Result == Results.Fail)} fail, " +
-                        $"{gameplay.Count(c => c.Result == Results.Skip)} skip, {gameplay.Count(c => c.Result == Results.Error)} error");
+        text.AppendLine("Gameplay: " + Line(Gameplay));
+        var evidence = EvidenceOnly;
+        if (evidence.Count > 0) text.AppendLine("Evidence only (screenshots and clips, no behaviour checked): " + Line(evidence));
         var diagnostic = Cases.Where(c => c.Diagnostic).ToList();
         if (diagnostic.Count > 0)
             text.AppendLine($"Diagnostic (runner self-checks): {diagnostic.Count(c => c.Result == c.ExpectedResult)} of {diagnostic.Count} reported as intended");
@@ -182,6 +198,8 @@ public class Progress
                             (ModErrors > 0 ? FailOnModErrors ? " (FAILS the run)" : " (not counted against the result)" : ""));
         foreach (var c in Cases)
         {
+            // Skips are listed under "Not covered" below.
+            if (!c.Diagnostic && c.Result == Results.Skip) continue;
             bool notable = c.Diagnostic ? c.Result != c.ExpectedResult : c.Result != Results.Pass;
             if (!notable)
             {
@@ -195,6 +213,12 @@ public class Progress
         }
         foreach (var b in BatchRecords.Where(b => b.Status != RunStatus.Complete)) text.AppendLine($"  BATCH {b.Id} {b.Status}: {b.Reason}");
         foreach (var (batch, id) in PendingCases()) text.AppendLine($"  PENDING {batch}/{id}");
+        // Skipped cases and batches this run never reached are not coverage, even in a run reported as PASS.
+        var skipped = Cases.Where(c => !c.Diagnostic && c.Result == Results.Skip).ToList();
+        text.AppendLine($"Not covered: {(skipped.Count == 0 ? "none" : skipped.Count + " skipped case(s)")}");
+        foreach (var c in skipped) text.AppendLine($"  SKIP [{c.CoverageReason ?? CoverageReasons.Unclassified}] {c.Batch}/{c.Id}: {c.Reason}");
+        var unscheduled = UnscheduledBatches();
+        text.AppendLine("Not run, outside run-all: " + (unscheduled.Count == 0 ? "none" : string.Join(", ", unscheduled)));
         text.AppendLine("Report: " + Path.Combine(runDir, "report.json"));
         return text.ToString();
     }

@@ -87,6 +87,9 @@ public static class DevTestsStartup
         var logError = Need(AccessTools.Method(typeof(Log), nameof(Log.Error), new[] { typeof(string) }), "Log.Error(string)");
         harmony.Patch(logError, prefix: new HarmonyMethod(typeof(CaseErrors), nameof(CaseErrors.Record)));
         harmony.Patch(logError, prefix: new HarmonyMethod(typeof(StartupLog), nameof(StartupLog.Record)));
+        harmony.Patch(logError, prefix: new HarmonyMethod(typeof(CaseErrors), nameof(CaseErrors.EnterLogError)),
+            finalizer: new HarmonyMethod(typeof(CaseErrors), nameof(CaseErrors.ExitLogError)));
+        UnityEngine.Application.logMessageReceivedThreaded += CaseErrors.Unity;
         harmony.Patch(Need(AccessTools.Method(typeof(Verse.AI.Pawn_JobTracker), nameof(Verse.AI.Pawn_JobTracker.StartJob)), "Pawn_JobTracker.StartJob"), postfix: new HarmonyMethod(typeof(JobStarts), nameof(JobStarts.After)));
         TestRunner.Active = true;
         RunnerSession.Read();
@@ -131,7 +134,12 @@ public static class StartupLog
     public static void Record(string __0)
     {
         if (__0 == null || !__0.Contains(Harness.Settings.ErrorMarker)) return;
-        lock (logged) if (logged.Count < 50) logged.Add(__0.Split('\n')[0]);
+        Add(__0);
+    }
+
+    internal static void Add(string text)
+    {
+        lock (logged) if (logged.Count < 50) logged.Add(text.Split('\n')[0]);
     }
 
     // Distinct first lines of every error naming the mod, from the game's log queue and from this hook.

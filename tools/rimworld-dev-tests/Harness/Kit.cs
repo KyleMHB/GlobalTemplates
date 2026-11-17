@@ -33,6 +33,25 @@ public static class Kit
         return false;
     }
 
+    // Harmony patches owned by `owner` (the mod's Harmony ID), counted per patch method ("Namespace.Type.Method") across every
+    // patched method: prefixes, postfixes, transpilers and finalizers. Compare each with the minimum the loaded mods allow
+    // (guide patches); a missing key is a patch that attached nowhere.
+    public static Dictionary<string, int> PatchCounts(string owner)
+    {
+        var counts = new Dictionary<string, int>();
+        foreach (var original in Harmony.GetAllPatchedMethods().ToList())
+        {
+            var info = Harmony.GetPatchInfo(original);
+            if (info == null) continue;
+            foreach (var patch in info.Prefixes.Concat(info.Postfixes).Concat(info.Transpilers).Concat(info.Finalizers).Where(p => p.owner == owner))
+            {
+                string name = patch.PatchMethod.DeclaringType?.FullName + "." + patch.PatchMethod.Name;
+                counts[name] = counts.TryGetValue(name, out int n) ? n + 1 : 1;
+            }
+        }
+        return counts;
+    }
+
     public static void SkipRemaining(BatchContext ctx, Batch batch, string reason, string category)
     {
         foreach (var p in batch.Plan.Where(p => ctx.ResultOf(p.Id) == null)) ctx.Begin(p.Id).Skip(reason, category);
