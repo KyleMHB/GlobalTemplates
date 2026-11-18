@@ -672,7 +672,10 @@ internal static class Quickstarter
             {
                 Rand.PopState();
             }
-        }, "Play", "GeneratingMap", false, ex => { Log.Error(Harness.Settings.LogPrefix + "Quickstart failed: " + ex); failed(ex); });
+        // No text key: a synchronous long event with text waits until its loading window has been drawn, and since
+        // RimWorld 1.7.5013 that window was never drawn in launcher-started runs, so quickstart sat at await-map forever.
+        // Root_Play's own map-generation event is asynchronous and shows "Generating map" anyway.
+        }, "Play", null, false, ex => { Log.Error(Harness.Settings.LogPrefix + "Quickstart failed: " + ex); failed(ex); });
     }
 
     private static bool Temperate(PlanetTile tile)
