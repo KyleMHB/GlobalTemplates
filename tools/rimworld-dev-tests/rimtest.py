@@ -26,6 +26,7 @@ Agent entry point: python rimtest.py guide [topic] (no config required).
 Window recording is shared; showcase content and triage stay in each mod.
 """
 import argparse
+from fnmatch import fnmatchcase
 from contextlib import contextmanager
 import ctypes
 from dataclasses import dataclass
@@ -109,6 +110,8 @@ class Config:
     # File names HarnessSettings.ExtraRuntimeExclusions leaves out of the runtime hash ("runtimeExclusions").
     runtime_exclusions: tuple = ()
     last_run_dir: Path = None
+    # Patterns from --case; empty runs every case.
+    cases: list = None
 
     @property
     def startup_error(self):
@@ -497,8 +500,31 @@ def print_diagnostics(config, run_dir):
     print(f"Last {LOG_TAIL_LINES} lines of {config.player_log}:\n{tail(config.player_log)}")
 
 
-def new_run_id(batch, seed):
-    return f"{datetime.now():%Y%m%d-%H%M%S}-{re.sub(r'[^a-z0-9-]', '-', batch.lower())}-s{seed}"
+def new_run_id(batch, seed, cases=None):
+    """A run filtered by --case says so in its id, so its folder is never mistaken for a full batch run."""
+    return f"{datetime.now():%Y%m%d-%H%M%S}-{re.sub(r'[^a-z0-9-]', '-', batch.lower())}-s{seed}" + ("-cases" if cases else "")
+
+
+def select_case_batches(config, batches, cases):
+    """Checks --case patterns against the batch list the game last wrote and keeps only the batches they select. Raises on a
+    pattern that matches no planned case. Without a current list (first launch after a DevTests build) the game checks instead:
+    it refuses a request whose filter selects nothing."""
+    listed = known_batches(config, sha256(config.dev_build)) if config.dev_build.is_file() else None
+    if not listed or RUN_ALL in batches:
+        return batches
+    plans = {b["id"]: b.get("cases") or [] for b in listed.get("batches") or []}
+    def selected(batch):
+        return [c for c in plans.get(batch, []) if any(fnmatchcase(c.lower(), p.lower()) for p in cases)]
+    unmatched = [p for p in cases if not any(fnmatchcase(c.lower(), p.lower()) for b in batches for c in plans.get(b, []))]
+    if unmatched:
+        raise RuntimeError(f"--case {' '.join(unmatched)} matches no planned case in {', '.join(batches)}; "
+                           "case ids are listed in each batch's report.json and summary")
+    kept = [b for b in batches if b not in plans or selected(b)]
+    for batch in batches:
+        if batch in plans:
+            print(f"--case selects {len(selected(batch))} of {len(plans[batch])} cases in {batch}" if selected(batch) else
+                  f"--case selects nothing in {batch}; not running it")
+    return kept
 
 
 # ---- Reusable session (session.json heartbeat + session-request.json inbox) ----------------------
@@ -672,14 +698,15 @@ def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, gra
                 clear_session(config)
             raise
         print("Launched a reusable RimWorld runner session.")
-    run_id = new_run_id(batch, seed) + "-" + uuid.uuid4().hex[:8]
+    run_id = new_run_id(batch, seed, config.cases) + "-" + uuid.uuid4().hex[:8]
     run_dir = config.last_run_dir = config.evidence_root / run_id
     report_path, summary_path = run_dir / "report.json", run_dir / "summary.txt"
     timed_out, report, ready, failure = False, None, False, None
     try:
         wait_session(config, process, token, deadline, startup_limit=0 if reuse else startup_timeout)
         print(f"Run {run_id}: evidence {run_dir}", flush=True)
-        send_session_request(config, token, "run", RunId=run_id, Batch=batch, Seed=seed, DeadlineUtcMs=game_deadline(deadline, graceful))
+        send_session_request(config, token, "run", RunId=run_id, Batch=batch, Seed=seed, DeadlineUtcMs=game_deadline(deadline, graceful),
+                             Cases=config.cases)
         while process.alive():
             if summary_path.is_file():
                 report = json.loads(report_path.read_text(encoding="utf-8"))
@@ -779,7 +806,7 @@ def run_once(config, batch, seed, timeout, keep_open=False, record=False, ffmpeg
     except (OSError, ValueError, RuntimeError, ET.ParseError, subprocess.SubprocessError) as error:
         print("REFUSED:", error)
         return 3
-    run_id = new_run_id(batch, seed)
+    run_id = new_run_id(batch, seed, config.cases)
     run_dir = config.last_run_dir = config.evidence_root / run_id
     recording = Recording(ffmpeg, run_dir, timeout, hide_ui=not show_ui) if record else None
     print(f"Run {run_id}: evidence {run_dir}", flush=True)
@@ -789,6 +816,7 @@ def run_once(config, batch, seed, timeout, keep_open=False, record=False, ffmpeg
         startup_deadline = time.monotonic() + startup_timeout
         process = subprocess.Popen(config.launch_command() + [config.arg("Test", batch), config.arg("Seed", seed), config.arg("RunId", run_id),
                                                               config.arg("Deadline", game_deadline(deadline))]
+                                   + ([config.arg("Cases", ",".join(config.cases))] if config.cases else [])
                                    + ([config.arg("KeepOpen", "true")] if keep_open else [])
                                    + ([config.arg("Record", "true")] if record else [])
                                    + ([config.arg("ShowUI", "true")] if show_ui else []))
@@ -882,6 +910,9 @@ def perf_problems(config, mod_dir):
         except (OSError, ValueError):
             continue
         for case in report.get("cases") or []:
+            # A --case run that left the case out did not measure it; an older full run may have.
+            if case.get("CoverageReason") == "not-selected":
+                continue
             if case.get("Id") in wanted and case.get("Id") not in found:
                 found[case["Id"]] = (folder.name, report, case)
     problems, passed = [], []
@@ -1090,6 +1121,10 @@ def run_command(argv=None):
     launch.add_argument("batch", nargs="+", help="one or more batches, run grouped by mod set; or run-all")
     launch.add_argument("--mods", metavar="SET", help="mod set from devtests.json, or full for the player's list (default: the batch's set)")
     launch.add_argument("--seed", type=int, default=1)
+    launch.add_argument("--case", action="append", default=[], metavar="ID",
+                        help="run only cases whose full id matches (glob with * and ?; repeatable). The others are reported as "
+                             "not-selected skips; batches save time only where their code checks ctx.Selected. A pattern matching no "
+                             "planned case is refused. Not for release or seam runs")
     launch.add_argument("--timeout", type=int, default=900,
                         help="wall-clock seconds for the whole command, game startup included; the game closes the run with a report "
                              f"{DEADLINE_GRACE} s before it and is killed at it. With several batches it applies to each one. Raise it for run-all: each batch may take up to its own limit (15 minutes by default)")
@@ -1129,6 +1164,15 @@ def run_command(argv=None):
             parser.error("--keep-open and --quit-on-finish cannot be combined")
         if (args.ffmpeg or args.show_ui) and not args.record:
             parser.error("--ffmpeg and --show-ui only apply with --record")
+        config.cases = [c for c in args.case if c.strip()]
+        if any("," in c for c in config.cases):
+            parser.error("--case takes one pattern each; repeat it for several")
+        if config.cases:
+            try:
+                args.batch = select_case_batches(config, args.batch, config.cases)
+            except (OSError, ValueError, RuntimeError) as error:
+                print("REFUSED:", error)
+                return 3
         if len(args.batch) > 1 and (RUN_ALL in args.batch or args.keep_open or args.quit_on_finish or args.record):
             parser.error("several batches run only in the reusable session, without run-all, --keep-open, --quit-on-finish or --record")
         if len(args.batch) > 1:

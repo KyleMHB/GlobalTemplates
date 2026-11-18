@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 
 namespace RimWorldDevTests;
@@ -23,6 +24,8 @@ public static class CoverageReasons
     // A player-workflow case whose AI had what it needed but didn't finish in the window. Doesn't count against coverage;
     // A mod's triage command can escalate a case that is inconclusive three runs in a row.
     public const string WorkflowInconclusive = "workflow-inconclusive";
+    // A planned case left out by the request's case filter (--case). Not coverage, but not a gap in a filtered run either.
+    public const string NotSelected = "not-selected";
 }
 
 public class RunRequest
@@ -39,6 +42,13 @@ public class RunRequest
     public bool HideUI = true;
     // When the launcher will kill the game (UTC milliseconds), less a margin; 0 when no launcher set a limit.
     public long DeadlineUtcMs;
+    // Case filter (--case): full case ids or globs with * and ?. Empty runs every case. Batches still run their code; only those
+    // that check BatchContext.Selected skip the work of unselected cases.
+    public List<string> Cases = new();
+
+    public bool Filtered => Cases is { Count: > 0 };
+    public bool Selects(string id) => !Filtered || Cases.Any(p => Regex.IsMatch(id,
+        "^" + Regex.Escape(p).Replace(@"\*", ".*").Replace(@"\?", ".") + "$", RegexOptions.IgnoreCase));
 }
 
 public class CaseRecord
@@ -121,7 +131,7 @@ public class Progress
     public IEnumerable<string> PendingBatches() => Request.Batches.Skip(BatchRecords.Count);
 
     public bool AssertionsPass => Cases.Where(c => !c.Diagnostic).All(c => c.Result is Results.Pass or Results.Skip);
-    public bool CoverageComplete => Cases.Where(c => !c.Diagnostic).All(c => c.Result is Results.Pass or Results.Fail || c.Result == Results.Skip && c.CoverageReason is CoverageReasons.NotApplicable or CoverageReasons.WorkflowInconclusive)
+    public bool CoverageComplete => Cases.Where(c => !c.Diagnostic).All(c => c.Result is Results.Pass or Results.Fail || c.Result == Results.Skip && c.CoverageReason is CoverageReasons.NotApplicable or CoverageReasons.WorkflowInconclusive or CoverageReasons.NotSelected)
         && !PendingCases().Any() && !PendingBatches().Any();
 
     public bool OverallPass =>
@@ -182,6 +192,9 @@ public class Progress
         text.AppendLine($"{Harness.Settings.DisplayName} test run {RunId}: {Status.ToUpperInvariant()}, overall {(OverallPass ? "PASS" : "NOT PASSED")}");
         if (!string.IsNullOrEmpty(Reason)) text.AppendLine("Reason: " + Reason);
         text.AppendLine($"Request: {string.Join(", ", Request.Batches)} seed {Request.Seed} ({Request.Origin})");
+        int notSelected = Cases.Count(c => c.CoverageReason == CoverageReasons.NotSelected);
+        if (Request.Filtered)
+            text.AppendLine($"FILTERED by --case {string.Join(" ", Request.Cases)}: {notSelected} planned case(s) not selected; not a full batch run");
         string Line(List<CaseRecord> list) => $"{list.Count(c => c.Result == Results.Pass)} pass, {list.Count(c => c.Result == Results.Fail)} fail, " +
                                                  $"{list.Count(c => c.Result == Results.Skip)} skip, {list.Count(c => c.Result == Results.Error)} error";
         text.AppendLine($"Assertions: {(AssertionsPass ? "no failures" : "NOT PASSED")}; coverage: {(CoverageComplete ? "complete for applicable cases" : "INCOMPLETE")}");
@@ -214,7 +227,7 @@ public class Progress
         foreach (var b in BatchRecords.Where(b => b.Status != RunStatus.Complete)) text.AppendLine($"  BATCH {b.Id} {b.Status}: {b.Reason}");
         foreach (var (batch, id) in PendingCases()) text.AppendLine($"  PENDING {batch}/{id}");
         // Skipped cases and batches this run never reached are not coverage, even in a run reported as PASS.
-        var skipped = Cases.Where(c => !c.Diagnostic && c.Result == Results.Skip).ToList();
+        var skipped = Cases.Where(c => !c.Diagnostic && c.Result == Results.Skip && c.CoverageReason != CoverageReasons.NotSelected).ToList();
         text.AppendLine($"Not covered: {(skipped.Count == 0 ? "none" : skipped.Count + " skipped case(s)")}");
         foreach (var c in skipped) text.AppendLine($"  SKIP [{c.CoverageReason ?? CoverageReasons.Unclassified}] {c.Batch}/{c.Id}: {c.Reason}");
         var unscheduled = UnscheduledBatches();

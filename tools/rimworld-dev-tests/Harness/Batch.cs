@@ -138,6 +138,10 @@ public class BatchContext
     public string Recall(string key) => progress.Memo.TryGetValue(batch.Id + "." + key, out var v) ? v : null;
     public float RecallFloat(string key) => float.Parse(Recall(key) ?? "NaN", CultureInfo.InvariantCulture);
 
+    // False when the run's case filter (--case) leaves this case out. Guard a case's expensive setup and waits with it; the runner
+    // records every unselected case as a not-selected skip at batch end, whether or not its code ran.
+    public bool Selected(string id) => progress.Request.Selects(id);
+
     public string ResultOf(string id) => progress.Case(batch.Id, id)?.Result;
 
     // Used only by diagnostics that exercise cancellation through the same path as the developer menu.

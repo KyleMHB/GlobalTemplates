@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
@@ -22,6 +23,7 @@ internal static class RunnerSession
         public string Session = null, Command = null, RunId = null, Batch = null;
         public int Seed = 1;
         public long DeadlineUtcMs = 0;
+        public List<string> Cases = null;
     }
 
     public static void Read()
@@ -76,7 +78,8 @@ internal static class RunnerSession
             return;
         }
         if (request.Command != "run" || string.IsNullOrEmpty(request.RunId) || Path.GetFileName(request.RunId) != request.RunId) return;
-        var run = new RunRequest { Batch = request.Batch, Seed = request.Seed, Origin = "session", DeadlineUtcMs = request.DeadlineUtcMs };
+        var run = new RunRequest { Batch = request.Batch, Seed = request.Seed, Origin = "session", DeadlineUtcMs = request.DeadlineUtcMs,
+            Cases = request.Cases ?? new() };
         if (!idle)
         {
             LaunchArguments.WriteRefusal(run, "session is no longer idle at the main menu", request.RunId);

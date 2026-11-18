@@ -62,6 +62,8 @@ public static class TestRunner
         if (request.Batches.Count == 0) request.Batches = Expand(request.Batch);
         var unknown = request.Batches.Where(b => !Batches.All.ContainsKey(b)).ToList();
         if (unknown.Count > 0) return "unknown batch: " + string.Join(", ", unknown) + ". Known: " + string.Join(", ", BatchIds) + ", " + RunAll;
+        if (request.Filtered && !request.Batches.SelectMany(b => Batches.All[b].Plan).Any(p => request.Selects(p.Id)))
+            return $"--case {string.Join(" ", request.Cases)} selects no planned case in {string.Join(", ", request.Batches)}";
         if (request.SaveAs != null)
         {
             if (request.Batches.Count != 1 || !Batches.All[request.Batches[0]].IsShowcase) return "--save-as requires a single showcase";
@@ -533,6 +535,19 @@ internal class Controller
                 c.Reason = reason ?? "case started but never finished";
                 c.CaptureOutcome(ctx?.ErrorMark ?? -1);
             }
+            // Unselected cases may have run (shared setup, prerequisites); only the selected ones decide the result.
+            if (progress.Request.Filtered)
+                foreach (var planned in batch.Plan.Where(p => !progress.Request.Selects(p.Id)))
+                {
+                    var c = progress.Case(record.Id, planned.Id);
+                    string ran = c == null ? "" : $" (ran: {c.Result})";
+                    if (c == null)
+                        progress.Cases.Add(c = new CaseRecord { Id = planned.Id, Batch = record.Id, Level = planned.Level, Diagnostic = batch.Diagnostic,
+                            ExpectedResult = planned.ExpectedResult });
+                    c.Result = Results.Skip;
+                    c.CoverageReason = CoverageReasons.NotSelected;
+                    c.Reason = "not selected by --case" + ran;
+                }
             if (reason != null)
                 foreach (var planned in batch.Plan.Where(p => progress.Case(record.Id, p.Id) == null))
                     progress.Cases.Add(new CaseRecord { Id = planned.Id, Batch = record.Id, Level = planned.Level, Diagnostic = batch.Diagnostic,
