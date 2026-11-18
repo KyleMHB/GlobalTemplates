@@ -19,6 +19,7 @@ https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/
 | `README.md` | `Git/readme-template.md` | GFM | Yes |
 | `CHANGELOG.md` | `Git/change-log-template.md` | GFM | Yes |
 | `TESTING.md` | `Git/testing-template.md` | GFM | No |
+| `DEVLOG.md` | `Git/devlog-template.md` | GFM | No |
 | `steam-description.md` | `Steam/steam-description-template.md` | BBCode | Yes |
 | `mod.json` | `Steam/wayward/wayward-mod-json-template.md` | JSON | Yes |
 | `About/About.xml` | `Steam/rimworld/rimworld-about-xml-template.md` | XML | Yes |
@@ -35,6 +36,8 @@ https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/
 - `tools/rimworld-mask-editor` is a mask painter, artwork gallery and recipe exporter for RimWorld mods. Start with its `README.md`.
 - `tools/rimworld-translate` checks, extracts, exports and imports RimWorld mod translations; the `rimworld-translate` skill drives it.
 - `tools/contact-sheet` renders before-and-after sheets of artwork for sharing; the `contact-sheet` skill drives it.
+- `tools/clip-compare` joins video clips into a labelled before-and-after video for sharing; the `clip-compare` skill drives it.
+- The `devlog-post` skill turns a `DEVLOG.md` entry into a post for Discord or social media, using the two tools above for its image or clip.
 - `profiles/` holds author profiles; see [Author details](#author-details).
 
 ## Install
@@ -57,7 +60,7 @@ Clone this repository anywhere. Below, `<templates-root>` means that folder.
    ln -s "<templates-root>/.agents/skills/steam-workshop-utils" ~/.claude/skills/steam-workshop-utils
    ~~~
 
-   Repeat for `review-mod`, `rimworld-translate` and `contact-sheet`, and for the Codex folder. Optional `agents/openai.yaml` files are Codex metadata; other agents use `SKILL.md` alone. See [skill lookup](skill-lookup.md) for discovery and fallback rules.
+   Repeat for `review-mod`, `rimworld-translate`, `contact-sheet`, `clip-compare` and `devlog-post`, and for the Codex folder. Optional `agents/openai.yaml` files are Codex metadata; other agents use `SKILL.md` alone. See [skill lookup](skill-lookup.md) for discovery and fallback rules.
 3. **Install the engineering skills** (optional). `AGENTS.md` routes planning and implementation to the Matt Pocock skills, verified at v1.3.1; see [the workflow guide](Git/matt-pocock-workflow.md). Install that version for each agent you use. Without them, agents do the same work directly.
 4. **Name your author profile** (optional). See [Author details](#author-details).
 5. **Set local game paths** for the RimWorld test harness, if you use it. See its README's "Local paths".
@@ -75,7 +78,7 @@ When template-backed work is requested:
 
 Templates marked as public copy run their reader-facing prose through the installed `unslop` skill before delivery. For `mod.json`, this covers `description`; for `About/About.xml`, it covers `<description>`. When the skill is unavailable, the agent applies the repository writing rules manually and reports that `unslop` was unavailable.
 
-Automatic work follows the triggers in `template-routing.md`. A `CHANGELOG.md` may be created or updated after a completed change with useful user, maintainer, or operational impact. An existing `TESTING.md` may be updated when its repeatable procedures, expectations, or evidence materially change; create it only on explicit request.
+Automatic work follows the triggers in `template-routing.md`. A `CHANGELOG.md` may be created or updated after a completed change with useful user, maintainer, or operational impact. An existing `TESTING.md` may be updated when its repeatable procedures, expectations, or evidence materially change; create it only on explicit request. An existing `DEVLOG.md` gains an entry when a session produces a moment worth showing to players; create it only on explicit request.
 
 ## Author details
 

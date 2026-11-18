@@ -26,6 +26,14 @@
       "appliesWhen": "Explicit request to create, or material changes to an existing file's procedures, expectations, or evidence"
     },
     {
+      "id": "devlog",
+      "template": "Git/devlog-template.md",
+      "target": "DEVLOG.md",
+      "format": "gfm",
+      "publicFacing": false,
+      "appliesWhen": "Explicit request to create, or a moment worth showing to players in a project with an existing file"
+    },
+    {
       "id": "steam-description",
       "template": "Steam/steam-description-template.md",
       "target": "steam-description.md",

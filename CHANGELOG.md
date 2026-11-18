@@ -2,6 +2,14 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
+## 2026-11-18
+
+### Added
+
+- Added the Clip Compare tool under `tools/` and its `clip-compare` skill, which join video clips into a labelled before-and-after video for sharing.
+- Added a devlog template for `DEVLOG.md`, a per-project log of moments worth showing to players. Agents add an entry when a session produces one, so the old version's captures are recorded while they still exist.
+- Added the `devlog-post` skill, which turns a devlog entry into an image or clip and draft post text for Discord and social media.
+
 ## 2026-11-17
 
 ### Added

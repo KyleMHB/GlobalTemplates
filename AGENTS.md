@@ -5,7 +5,7 @@
 Resolve shared files from this checkout or a user/project-configured Templates root. If unavailable and network access is allowed, use `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/`. Paths in this file are relative to that root.
 
 - **User-facing copy:** before writing reader-facing prose (README, changelog, Steam description, `About.xml` or `mod.json` descriptions), read `writing-copy.md`.
-- **Templates:** before creating or editing `README.md`, `CHANGELOG.md`, `TESTING.md`, `steam-description.md`, `mod.json` or `About/About.xml`, read `template-routing.md`. This includes a completed change with useful user, maintainer or operational impact (changelog), and a material change to an existing `TESTING.md`'s procedures.
+- **Templates:** before creating or editing `README.md`, `CHANGELOG.md`, `TESTING.md`, `DEVLOG.md`, `steam-description.md`, `mod.json` or `About/About.xml`, read `template-routing.md`. This includes a completed change with useful user, maintainer or operational impact (changelog), a material change to an existing `TESTING.md`'s procedures, and, in a project with a `DEVLOG.md`, a change players could see: a first working feature, replaced art or animation, a visible fix, or refilmed footage (devlog).
 - **RimWorld testing or artwork:** read the short [RimWorld agent read route](Steam/rimworld/agent-guide.md), then only the relevant harness or artwork topic.
 - **Missing skill:** before reporting a named skill unavailable, read `skill-lookup.md`.
 
