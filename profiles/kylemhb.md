@@ -41,3 +41,9 @@ That bothers me too.
 
 My workflow involves a lot of iteration, review, and testing. The same care I'd put into building everything by hand. I've spent hundreds of hours building mods. Using AI doesn't lower the standard I expect from my work.
 ```
+
+## discord-channels
+
+Channels the `discord-search` skill searches when no channel is named.
+
+- Modding questions: https://discord.com/channels/214523379766525963/215496692047413249

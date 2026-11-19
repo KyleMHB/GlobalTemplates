@@ -25,3 +25,9 @@ Your disclosure, in your own words.
 
 Your disclosure, in your own words.
 ```
+
+## discord-channels
+
+Channels the `discord-search` skill searches when no channel is named.
+
+- Modding questions: https://discord.com/channels/<server-id>/<channel-id>

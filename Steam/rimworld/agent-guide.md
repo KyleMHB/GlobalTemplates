@@ -10,7 +10,7 @@ Use only the branch relevant to the task. Project instructions own design choice
 | Write C# for a new mod | [Translatable by default](#translatable-by-default) | [Localisation facts](../../tools/rimworld-translate/docs/localisation.md) |
 | Translate a mod, add a language, or update translations after English changed | The `rimworld-translate` skill (`.agents/skills/rimworld-translate/SKILL.md`) | [Translate tool agent guide](../../tools/rimworld-translate/AGENTS.md); [localisation facts](../../tools/rimworld-translate/docs/localisation.md) |
 | Change About.xml metadata | [About.xml template](rimworld-about-xml-template.md) when template-backed metadata work is requested | Existing About.xml, LoadFolders.xml and package evidence |
-| Establish game behavior or version-sensitive facts | Project configuration and installed game sources | [Harness game facts](../../tools/rimworld-dev-tests/docs/game-facts.md), or a project's own game reference; search relevant types or headings |
+| Establish game behavior or version-sensitive facts | Project configuration and installed game sources | [Harness game facts](../../tools/rimworld-dev-tests/docs/game-facts.md), or a project's own game reference; search relevant types or headings. For what they leave open, the `discord-search` skill |
 
 The test harness, **RimWorld Dev Tests**, is bundled in `tools/rimworld-dev-tests`. Each mod supplies its adapter and cases and points its build and wrapper at that folder. Its short guide routes to setup pitfalls, evidence and a workflow for retaining discoveries. Read that guide instead of loading every source or recipe.
 

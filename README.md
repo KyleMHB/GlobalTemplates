@@ -38,6 +38,7 @@ https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/
 - `tools/contact-sheet` renders before-and-after sheets of artwork for sharing; the `contact-sheet` skill drives it.
 - `tools/clip-compare` joins video clips into a labelled before-and-after video for sharing; the `clip-compare` skill drives it.
 - The `devlog-post` skill turns a `DEVLOG.md` entry into a post for Discord or social media, using the two tools above for its image or clip.
+- The `discord-search` skill searches a Discord channel for answers to one development question, reading it through your signed-in browser.
 - `profiles/` holds author profiles; see [Author details](#author-details).
 
 ## Install
@@ -60,7 +61,7 @@ Clone this repository anywhere. Below, `<templates-root>` means that folder.
    ln -s "<templates-root>/.agents/skills/steam-workshop-utils" ~/.claude/skills/steam-workshop-utils
    ~~~
 
-   Repeat for `review-mod`, `rimworld-translate`, `contact-sheet`, `clip-compare` and `devlog-post`, and for the Codex folder. Optional `agents/openai.yaml` files are Codex metadata; other agents use `SKILL.md` alone. See [skill lookup](skill-lookup.md) for discovery and fallback rules.
+   Repeat for `review-mod`, `rimworld-translate`, `contact-sheet`, `clip-compare`, `devlog-post` and `discord-search`, and for the Codex folder. Optional `agents/openai.yaml` files are Codex metadata; other agents use `SKILL.md` alone. See [skill lookup](skill-lookup.md) for discovery and fallback rules.
 3. **Install the engineering skills** (optional). `AGENTS.md` routes planning and implementation to the Matt Pocock skills, verified at v1.3.1; see [the workflow guide](Git/matt-pocock-workflow.md). Install that version for each agent you use. Without them, agents do the same work directly.
 4. **Name your author profile** (optional). See [Author details](#author-details).
 5. **Set local game paths** for the RimWorld test harness, if you use it. See its README's "Local paths".
@@ -88,6 +89,8 @@ The README and Steam description templates have two author-specific parts: a Ko-
 2. Name it in the same user-level file as the shared rules: `Author profile: <templates-root>/profiles/<your-name>.md`.
 
 Agents use only the profile your instructions name, never another file in `profiles/`. With no profile named, they leave out the Ko-fi badge and the AI disclosure instead of publishing a placeholder.
+
+A profile can also list `discord-channels`, the community channels the `discord-search` skill searches when you name no channel.
 
 ## Adding or changing templates
 
