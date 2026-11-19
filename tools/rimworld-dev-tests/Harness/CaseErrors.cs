@@ -27,10 +27,59 @@ public static class CaseErrors
     public static void EnterLogError() => inLogError++;
     public static void ExitLogError() { if (inLogError > 0) inLogError--; }
 
+    // ---- Allowances and warnings --------------------------------------------------------------------------------------------
+    private static readonly List<(long seq, string text)> Warned = new();
+    private static long nextWarning;
+    private static LogAllowance[] allowedErrors, allowedWarnings;
+
+    public static long WarningMark { get { lock (Warned) return nextWarning; } }
+
+    // True when an allowance covers the line: its text is in the message and, when it names a frame, that frame is on the
+    // stack. The stack is read only for an allowance whose text already matched.
+    private static bool Allowed(LogAllowance[] allowances, string text, Func<string> stack)
+    {
+        if (allowances.Length == 0 || text == null) return false;
+        string trace = null;
+        foreach (var a in allowances)
+        {
+            if (string.IsNullOrEmpty(a.Text) || !text.Contains(a.Text)) continue;
+            if (string.IsNullOrEmpty(a.Frame) || (trace ??= stack() ?? "").Contains(a.Frame)) return true;
+        }
+        return false;
+    }
+
+    private static bool AllowedError(string text, Func<string> stack) =>
+        Allowed(allowedErrors ??= Harness.Settings.AllowedErrors.ToArray(), text, stack);
+
+    // Harmony prefix on Verse.Log.Warning(string), bound by position. Never blocks the original. The runner's own lines and
+    // allowed ones are not counted.
+    public static void RecordWarning(string __0)
+    {
+        if (!TestRunner.Running || __0 == null || __0.StartsWith(Harness.Settings.LogPrefix) || __0.StartsWith("[RimWorldDevTests")) return;
+        if (Allowed(allowedWarnings ??= Harness.Settings.AllowedWarnings.ToArray(), __0, () => Environment.StackTrace)) return;
+        lock (Warned)
+        {
+            Warned.Add((++nextWarning, __0));
+            if (Warned.Count > Kept) Warned.RemoveRange(0, Warned.Count - Kept);
+        }
+    }
+
+    public static IEnumerable<string> WarningsFor(CaseRecord c, long windowStart = -1)
+    {
+        long mark = Window(c.WarningMark, windowStart);
+        return mark < 0 ? Enumerable.Empty<string>() : Lines(Warned, mark, "logged warning: ").ToList();
+    }
+
+    public static int WarningCountFor(CaseRecord c, long windowStart = -1)
+    {
+        long mark = Window(c.WarningMark, windowStart);
+        return mark < 0 ? 0 : (int)(WarningMark - mark);
+    }
+
     // Harmony prefix on Verse.Log.Error(string), bound by position. Never blocks the original.
     public static void Record(string __0)
     {
-        if (!TestRunner.Running) return;
+        if (!TestRunner.Running || AllowedError(__0, () => Environment.StackTrace)) return;
         // The game may log from worker threads.
         lock (Logged)
         {
@@ -46,6 +95,7 @@ public static class CaseErrors
     public static void Unity(string condition, string stackTrace, LogType type)
     {
         if (type != LogType.Exception && type != LogType.Error || inLogError > 0 || !TestRunner.Running) return;
+        if (AllowedError(condition, () => stackTrace)) return;
         string text = (type == LogType.Exception ? "uncaught exception: " : "Unity error: ") + (condition ?? "");
         bool mod = NamesMod(condition) || NamesMod(stackTrace);
         lock (Logged)
@@ -81,8 +131,10 @@ public static class CaseErrors
 
     // Where a case's window starts: since the batch's previous case finished, or since the case began if earlier.
     // A record read back from progress.json has no mark of its own.
-    private static long WindowMark(CaseRecord c, long windowStart) =>
-        c.ErrorMark < 0 ? windowStart : windowStart < 0 ? c.ErrorMark : Math.Min(c.ErrorMark, windowStart);
+    private static long WindowMark(CaseRecord c, long windowStart) => Window(c.ErrorMark, windowStart);
+
+    private static long Window(long caseMark, long windowStart) =>
+        caseMark < 0 ? windowStart : windowStart < 0 ? caseMark : Math.Min(caseMark, windowStart);
 
     public static IEnumerable<string> For(CaseRecord c, long windowStart = -1)
     {
@@ -98,15 +150,17 @@ public static class CaseErrors
     }
 
     // Distinct first lines of errors logged after the mark, capped, with a count of the rest.
-    public static IEnumerable<string> Since(long mark)
+    public static IEnumerable<string> Since(long mark) => Lines(Logged, mark, "logged error: ");
+
+    private static IEnumerable<string> Lines(List<(long seq, string text)> source, long mark, string label)
     {
         List<(long seq, string text)> logged;
-        lock (Logged) logged = Logged.ToList();
+        lock (source) logged = source.ToList();
         var distinct = logged.Where(e => e.seq > mark)
             .Select(e => e.text.Split('\n')[0].Trim())
             .Select(t => t.Length > LineLength ? t.Substring(0, LineLength) + "…" : t)
             .Distinct().ToList();
-        foreach (var line in distinct.Take(PerCase)) yield return "logged error: " + line;
-        if (distinct.Count > PerCase) yield return $"logged error: (+{distinct.Count - PerCase} more distinct)";
+        foreach (var line in distinct.Take(PerCase)) yield return label + line;
+        if (distinct.Count > PerCase) yield return $"{label}(+{distinct.Count - PerCase} more distinct)";
     }
 }

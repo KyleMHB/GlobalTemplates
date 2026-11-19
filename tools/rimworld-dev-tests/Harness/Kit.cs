@@ -219,10 +219,22 @@ public static class Kit
             if (pawn.timetable != null) for (int h = 0; h < 24; h++) pawn.timetable.SetAssignment(h, TimeAssignmentDefOf.Work);
             pawn.needs?.rest?.SetInitialLevel();
             if (pawn.needs?.rest != null) pawn.needs.rest.CurLevelPercentage = 1f;
+            RemoveTendable(ctx, pawn);
             ctx.Setup($"Developer spawned colonist {pawn.LabelShort} at {cell}: only {work.defName} enabled (priority 1){(skill == null ? "" : $", {skill.defName} 10")}, all-work timetable, rested");
             return pawn;
         }
         throw new SetupException($"no generated colonist could do {work.defName} in 20 attempts");
+    }
+
+    // A generated colonist can arrive with a condition that needs tending (asthma, for one), and a pawn with anything tendable
+    // seeks medical rest instead of the work or bed a case set up, so the case fails on some seeds only. Removes those
+    // conditions and discloses each. Call it for any pawn a case generates itself.
+    public static void RemoveTendable(BatchContext ctx, Pawn pawn)
+    {
+        var tendable = pawn.health.hediffSet.hediffs.Where(h => h.TendableNow(true)).ToList();
+        foreach (var hediff in tendable) pawn.health.RemoveHediff(hediff);
+        if (tendable.Count > 0)
+            ctx.Setup($"Developer removed {pawn.LabelShort}'s conditions needing tending: {string.Join(", ", tendable.Select(h => h.def.defName))}");
     }
 
     public static Action All(params Action[] actions) => () => { foreach (var a in actions) a?.Invoke(); };

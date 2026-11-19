@@ -2,6 +2,23 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
+## 2026-11-19
+
+### Added
+
+- RimWorld Dev Tests cases can be written as steps: `CaseScope.Step`, `Note` and `Conclude`. A failed step no longer ends the case, and the summary prints every step under a failing case.
+- Added `CaseScope.KnownGap` to RimWorld Dev Tests for a check that isn't true yet. The case is skipped as `known-gap` without failing the run, and the summary says when the gap starts to hold.
+- RimWorld Dev Tests counts warnings logged during a run, per case and in total. `FailOnWarnings` makes them fail the run, and `AllowedWarnings` and `AllowedErrors` exclude expected lines, optionally only when a named method is on the logging call's stack.
+- Added `Kit.RemoveTendable` to RimWorld Dev Tests, and `Kit.Worker` now calls it, so a generated colonist no longer becomes a patient on some seeds.
+- Added `looseOrderSets` to `devtests.json`, for mod sets that break a `loadAfter` or `loadBefore` rule on purpose to test an integration in the order players get wrong.
+- RimWorld Dev Tests `release-check` now fails on a `Patches` file whose root is not `<Patch>` and on a Workshop preview over 1 MiB. It warns when XML names a class the production DLL doesn't hold.
+- Added engine pitfalls reported by the Shift Change mod's tests to the RimWorld Dev Tests game facts, marked as not yet verified on 1.7.
+
+### Changed
+
+- A failing case's subject line in RimWorld Dev Tests evidence now names the job driver and toil the pawn stopped on.
+- The testing template asks for a list of what the tests don't cover, including passing checks narrower than they look.
+
 ## 2026-11-18
 
 ### Added

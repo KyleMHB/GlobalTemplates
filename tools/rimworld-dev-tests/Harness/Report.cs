@@ -26,6 +26,9 @@ public static class CoverageReasons
     public const string WorkflowInconclusive = "workflow-inconclusive";
     // A planned case left out by the request's case filter (--case). Not coverage, but not a gap in a filtered run either.
     public const string NotSelected = "not-selected";
+    // A case with an open CaseScope.KnownGap: something not true yet, with its reason recorded. Listed as not covered, but it
+    // doesn't fail the run, so a known gap never becomes the one failure everybody learns to ignore.
+    public const string KnownGap = "known-gap";
 }
 
 public class RunRequest
@@ -70,13 +73,23 @@ public class CaseRecord
     public int StartTick;
     // Errors the game logged in this case's window, whatever its result: a passing case can still have run over errors.
     public int LoggedErrors;
+    // Runtime only, as ErrorMark: the warning-log position when this case began.
+    internal long WarningMark = -1;
+    // Warnings logged in this case's window that no HarnessSettings.AllowedWarnings entry covers.
+    public int LoggedWarnings;
+    // The case as steps in the player's words (CaseScope.Step, Note, KnownGap), each with its marker in the margin.
+    public List<string> Steps = new();
+    // Known gaps that held this time: each should become a Step.
+    public int FixedGaps;
 
-    // Every finished case records the errors logged in its window (CaseErrors); a failing one adds the state of each
-    // registered subject. The reason is already in Reason.
-    internal void CaptureOutcome(long windowStart = -1)
+    // Every finished case records the errors and warnings logged in its window (CaseErrors); a failing one adds the state of
+    // each registered subject. The reason is already in Reason.
+    internal void CaptureOutcome(long windowStart = -1, long warningStart = -1)
     {
         LoggedErrors = CaseErrors.CountFor(this, windowStart);
         Evidence.AddRange(CaseErrors.For(this, windowStart));
+        LoggedWarnings = CaseErrors.WarningCountFor(this, warningStart);
+        Evidence.AddRange(CaseErrors.WarningsFor(this, warningStart));
         if (!(Result is Results.Fail or Results.Error || Result == Results.Skip && CoverageReason == CoverageReasons.SetupFailed)) return;
         foreach (var state in SubjectStates.Values) Evidence.Add(state());
     }
@@ -105,6 +118,9 @@ public class Progress
     // batch end; a run recovered after its process died keeps the last count written.
     public int LoggedErrors, ModErrors;
     public bool FailOnModErrors;
+    // Warnings logged during the run that no allowance covers, and whether any fails the run (HarnessSettings.FailOnWarnings).
+    public int Warnings;
+    public bool FailOnWarnings;
     public Dictionary<string, string> Memo = new();
     public Dictionary<string, object> Environment = new();
     public List<BatchRecord> BatchRecords = new();
@@ -131,13 +147,13 @@ public class Progress
     public IEnumerable<string> PendingBatches() => Request.Batches.Skip(BatchRecords.Count);
 
     public bool AssertionsPass => Cases.Where(c => !c.Diagnostic).All(c => c.Result is Results.Pass or Results.Skip);
-    public bool CoverageComplete => Cases.Where(c => !c.Diagnostic).All(c => c.Result is Results.Pass or Results.Fail || c.Result == Results.Skip && c.CoverageReason is CoverageReasons.NotApplicable or CoverageReasons.WorkflowInconclusive or CoverageReasons.NotSelected)
+    public bool CoverageComplete => Cases.Where(c => !c.Diagnostic).All(c => c.Result is Results.Pass or Results.Fail || c.Result == Results.Skip && c.CoverageReason is CoverageReasons.NotApplicable or CoverageReasons.WorkflowInconclusive or CoverageReasons.NotSelected or CoverageReasons.KnownGap)
         && !PendingCases().Any() && !PendingBatches().Any();
 
     public bool OverallPass =>
         Status == RunStatus.Complete && !PendingCases().Any() && !PendingBatches().Any() &&
         BatchRecords.All(b => b.Status == RunStatus.Complete) &&
-        CoverageComplete && !(FailOnModErrors && ModErrors > 0) &&
+        CoverageComplete && !(FailOnModErrors && ModErrors > 0) && !(FailOnWarnings && Warnings > 0) &&
         Cases.All(c => c.Diagnostic ? c.Result == c.ExpectedResult : c.Result is Results.Pass or Results.Skip);
 
     // Behaviour checks: neither runner self-checks nor cases that only write evidence (Levels.Evidence).
@@ -167,6 +183,7 @@ public class Progress
             ["schema"] = 2, ["runId"] = RunId, ["status"] = Status, ["reason"] = Reason, ["overallPass"] = OverallPass,
             ["assertionsPass"] = AssertionsPass, ["coverageComplete"] = CoverageComplete,
             ["loggedErrors"] = LoggedErrors, ["modErrors"] = ModErrors, ["failOnModErrors"] = FailOnModErrors,
+            ["warnings"] = Warnings, ["failOnWarnings"] = FailOnWarnings,
             ["coverageGaps"] = Cases.Where(c => !c.Diagnostic && c.Result == Results.Skip).GroupBy(c => c.CoverageReason ?? CoverageReasons.Unclassified).ToDictionary(g => g.Key, g => g.Count()),
             ["startedUtc"] = StartedUtc, ["finishedUtc"] = FinishedUtc, ["request"] = Request,
             ["game"] = Environment.GetValueOrDefault("game"), ["modBuild"] = Environment.GetValueOrDefault("modBuild"),
@@ -209,8 +226,12 @@ public class Progress
         if (LoggedErrors > 0)
             text.AppendLine($"Logged errors: {LoggedErrors} during the run, {ModErrors} naming '{Harness.Settings.ErrorMarker}'" +
                             (ModErrors > 0 ? FailOnModErrors ? " (FAILS the run)" : " (not counted against the result)" : ""));
+        if (Warnings > 0)
+            text.AppendLine($"Logged warnings: {Warnings} not covered by an allowance" + (FailOnWarnings ? " (FAILS the run)" : " (not counted against the result)"));
         foreach (var c in Cases)
         {
+            // A known gap that held is listed whatever the result, so it gets turned into a check.
+            if (!c.Diagnostic && c.FixedGaps > 0) text.AppendLine($"  KNOWN GAP NOW HOLDS in {c.Batch}/{c.Id}: {c.FixedGaps} step(s) marked FIXED; make each a Step");
             // Skips are listed under "Not covered" below.
             if (!c.Diagnostic && c.Result == Results.Skip) continue;
             bool notable = c.Diagnostic ? c.Result != c.ExpectedResult : c.Result != Results.Pass;
@@ -218,11 +239,14 @@ public class Progress
             {
                 // A pass that ran over logged errors is listed, so the errors are looked at; details are in its evidence.
                 if (!c.Diagnostic && c.LoggedErrors > 0) text.AppendLine($"  PASS WITH {c.LoggedErrors} LOGGED ERROR(S) {c.Batch}/{c.Id}");
+                if (!c.Diagnostic && c.LoggedWarnings > 0) text.AppendLine($"  PASS WITH {c.LoggedWarnings} LOGGED WARNING(S) {c.Batch}/{c.Id}");
                 continue;
             }
             string intended = c.Diagnostic ? $" (intended {c.ExpectedResult})" : "";
             string coverage = c.Result == Results.Skip ? $" [{c.CoverageReason ?? CoverageReasons.Unclassified}]" : "";
             text.AppendLine($"  {c.Result.ToUpperInvariant()}{coverage} {c.Batch}/{c.Id}{intended}: {c.Reason}");
+            // What had happened when it went wrong, and every check after it.
+            foreach (var step in c.Steps) text.AppendLine("      " + step);
         }
         foreach (var b in BatchRecords.Where(b => b.Status != RunStatus.Complete)) text.AppendLine($"  BATCH {b.Id} {b.Status}: {b.Reason}");
         foreach (var (batch, id) in PendingCases()) text.AppendLine($"  PENDING {batch}/{id}");

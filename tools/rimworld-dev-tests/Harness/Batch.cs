@@ -99,6 +99,7 @@ public class BatchContext
     public string MeasurementProblem => LastWait?.Problem;
     // Errors logged after this mark belong to the next case to finish: it moves on whenever a case finishes.
     internal long ErrorMark = CaseErrors.Mark;
+    internal long WarningMark = CaseErrors.WarningMark;
 
     internal BatchContext(Progress progress, BatchRecord record, Batch batch)
     {
@@ -155,7 +156,7 @@ public class BatchContext
         var c = existing ?? new CaseRecord
         {
             Id = id, Batch = batch.Id, Level = planned.Level, Diagnostic = batch.Diagnostic,
-            ExpectedResult = planned.ExpectedResult, StartTick = Now, ErrorMark = ErrorMark,
+            ExpectedResult = planned.ExpectedResult, StartTick = Now, ErrorMark = ErrorMark, WarningMark = WarningMark,
         };
         if (existing == null) { progress.Cases.Add(c); RunTimeline.Event("case-start", batch.Id, id); }
         if (phase != null) c.Phase = phase;
@@ -202,8 +203,11 @@ public class CaseScope
                 try
                 {
                     var bed = pawn.Spawned && !pawn.Dead ? RimWorld.RestUtility.CurrentBed(pawn) : null;
+                    // The driver and toil say where a job stopped, which a job def alone does not.
+                    var driver = pawn.jobs?.curDriver;
                     return $"subject: {pawn.ThingID} ({pawn.LabelShort}), {(pawn.Dead ? "dead" : "alive")}, downed {pawn.Downed}, " +
-                        $"job {pawn.CurJobDef?.defName ?? "none"}, position {pawn.Position}, bed {bed?.ThingID ?? "none"}";
+                        $"job {pawn.CurJobDef?.defName ?? "none"}" + (driver == null ? "" : $" ({driver.GetType().Name} toil {driver.CurToilIndex})") +
+                        $", position {pawn.Position}, bed {bed?.ThingID ?? "none"}";
                 }
                 catch (Exception ex) { return $"subject: {pawn.ThingID}: state unavailable ({ex.GetType().Name}: {ex.Message})"; }
             };
@@ -246,6 +250,46 @@ public class CaseScope
         else Skip(reason, CoverageReasons.WorkflowInconclusive);
     }
 
+    // ---- Step transcript ---------------------------------------------------------------------------------------------------
+    // A case told as steps in the player's words. A failed step does not stop the case, so the record shows what had happened
+    // when it went wrong and every check after it; Conclude finishes the case from the steps.
+
+    // A line of context that checks nothing: a setting turned on, a job handed out.
+    public CaseScope Note(string what) { record.Steps.Add("        " + what); return this; }
+
+    // A soft check. Returns the condition, so a case can stop where the rest would be moot.
+    public bool Step(bool met, string what)
+    {
+        record.Steps.Add((met ? PassedStep : FailedStep) + what);
+        return met;
+    }
+
+    // Something the case checks that is not true yet, with the reason: the mod doesn't do it, or the mod it needs isn't loaded.
+    // The check still runs. While it doesn't hold the case concludes as a known-gap skip; once it holds the step reads FIXED and
+    // the summary says to make it a Step.
+    public CaseScope KnownGap(bool holds, string what, string why)
+    {
+        if (holds) { record.Steps.Add("  FIXED " + what + " (a known gap that now holds: make it a Step)"); record.FixedGaps++; }
+        else record.Steps.Add(GapStep + what + ": " + why);
+        return this;
+    }
+
+    // Margin markers. Conclude reads them back from the record, so steps written before a reload still count.
+    private const string PassedStep = "  PASS  ", FailedStep = ">>FAIL  ", GapStep = "  GAP   ";
+
+    // Finishes a case built from steps: a lost window prerequisite is a setup failure, a failed step fails with the first one,
+    // an open known gap skips, otherwise it passes.
+    public void Conclude()
+    {
+        string failed = record.Steps.FirstOrDefault(s => s.StartsWith(FailedStep));
+        var gaps = record.Steps.Where(s => s.StartsWith(GapStep)).ToList();
+        if (ctx.MeasurementProblem != null) SetupFailed(ctx.MeasurementProblem);
+        else if (failed != null) Fail(failed.Substring(FailedStep.Length));
+        else if (gaps.Count > 0)
+            Skip("known gap, " + gaps[0].Substring(GapStep.Length) + (gaps.Count > 1 ? $" (and {gaps.Count - 1} more)" : ""), CoverageReasons.KnownGap);
+        else Pass();
+    }
+
     // Pass when the observation meets the expectation, otherwise fail with the reason.
     public void Check(bool met, string reasonIfNot)
     {
@@ -259,8 +303,9 @@ public class CaseScope
         if (record.Result != Results.Running) throw new InvalidOperationException("Case already finished: " + record.Id);
         record.Result = result;
         record.Reason = reason;
-        record.CaptureOutcome(ctx.ErrorMark);
+        record.CaptureOutcome(ctx.ErrorMark, ctx.WarningMark);
         ctx.ErrorMark = CaseErrors.Mark;
+        ctx.WarningMark = CaseErrors.WarningMark;
         record.Ticks = Find.TickManager.TicksGame - record.StartTick;
         RunTimeline.Event("case-end", record.Batch, record.Id, result);
         ctx.Saved();

@@ -18,8 +18,10 @@ check.Observe("change", observed).Check(observed == expected, "effect differed")
 
 The values and effect reading above belong to the actual case, not this recipe. `Kit.Require` creates a setup-failed record only on failure; a successful call allows `Begin` for the same planned ID. `CaseScope.Check` converts a lost window prerequisite into setup failure. Guard occupancy or required injury, not whether the measured effect succeeded.
 
+A negative check alone proves nothing: "did not divert" also holds when the stand was never eligible. Put it beside the same setup producing the positive result, in the same case when both are cheap (`CaseScope.Step`). Hold a `JobDriver` (`pawn.jobs.curDriver`), not a `Job`, across a job's end, and read how it ended; see [game facts](../game-facts.md#reported-by-other-projects-not-verified-here).
+
 Use `SkipUnlessPassed` for dependent controls. A failed positive control cannot establish a negative result. Distinguish setup failure, missing optional content, unavailable environment, blocked comparisons and mod assertions. Preserve coverage gaps and interrupted cases; a build or absence of exceptions is not gameplay coverage.
 
 After reload, reacquire pawns, buildings and other game objects; reconstruct actions and registrations. Persist measurements through `ctx.Remember`/`Recall`, not object references in an old iterator.
 
-Available in the shared library: `Harness/Batch.cs` (`Wait.While`, `BatchContext`, `CaseScope`, `SkipUnlessPassed`), `Harness/Kit.cs` (`Require`), `Harness/Report.cs` (assertions and coverage). Diagnostic cases exercise the result categories. A 2026-11-08 run reported all 13 diagnostic outcomes as intended. This does not verify every mod's choice of prerequisites.
+Available in the shared library: `Harness/Batch.cs` (`Wait.While`, `BatchContext`, `CaseScope` with `Step`, `Note`, `KnownGap` and `Conclude`, `SkipUnlessPassed`), `Harness/Kit.cs` (`Require`), `Harness/Report.cs` (assertions and coverage). Diagnostic cases exercise the result categories. A 2026-11-08 run reported all 13 diagnostic outcomes as intended. This does not verify every mod's choice of prerequisites.

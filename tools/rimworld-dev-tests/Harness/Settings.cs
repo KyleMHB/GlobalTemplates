@@ -37,6 +37,13 @@ public abstract class HarnessSettings
     public virtual string ErrorMarker => DisplayName;
     // When true, a run that logged any error containing ErrorMarker does not pass overall, even if every case passed.
     public virtual bool FailOnModErrors => false;
+    // Warnings and errors a run expects, which are then not counted or reported. Give a Frame wherever the line comes from
+    // one place, so the same text logged from anywhere else still counts.
+    public virtual IEnumerable<LogAllowance> AllowedWarnings => Array.Empty<LogAllowance>();
+    public virtual IEnumerable<LogAllowance> AllowedErrors => Array.Empty<LogAllowance>();
+    // When true, a run that logged any warning no allowance covers does not pass overall. Off by default: a large mod list
+    // warns about much that is not the mod's doing, and each of those needs an allowance first.
+    public virtual bool FailOnWarnings => false;
     // Folders and files deployment copies; the launcher hashes the same set. Missing entries are ignored.
     public virtual string[] RuntimeFolders => new[] { "About", "Assemblies", "Defs", "Patches", "Languages", "Textures", "Sounds" };
     public virtual string[] RuntimeFiles => new[] { "LoadFolders.xml" };
@@ -58,6 +65,11 @@ public abstract class HarnessSettings
     public string DevDllName => System.IO.Path.GetFileName(DevDllPath);
     public string ProductionDllPath => ProductionType.Assembly.Location;
 }
+
+// A logged line the run expects. Text must appear in the message. Frame, when given, must appear in the stack trace of the
+// call that logged it, as "Namespace.Type.Method" or any part of that; a frame of a Harmony-patched method may read
+// differently, so name a caller that is not patched.
+public record LogAllowance(string Text, string Frame = null);
 
 public static class Harness
 {

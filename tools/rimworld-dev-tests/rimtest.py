@@ -101,6 +101,8 @@ class Config:
     package_id: str
     mod_sets: dict
     batch_mod_sets: dict
+    # Mod sets that break a loadAfter/loadBefore rule on purpose ("looseOrderSets"): players load mods in the wrong order too.
+    loose_order_sets: tuple = ()
     process_name: str = "RimWorld.exe"
     # The player's real data: never written by a run, and checked afterwards to prove it.
     saves_dir: Path = SAVE_DATA / "Saves"
@@ -155,6 +157,7 @@ def load_config(path):
                   package_id=about.package_id if about else "",
                   mod_sets={name: [i.lower() for i in ids] for name, ids in data.get("modSets", {}).items()},
                   batch_mod_sets=data.get("batchModSets", {}),
+                  loose_order_sets=tuple(data.get("looseOrderSets", [])),
                   runtime_exclusions=tuple(data.get("runtimeExclusions", [])))
 
 
@@ -265,8 +268,11 @@ def select_mods(config, batch, override=None):
     return ModSelection(name, list(config.mod_sets[name]), [settings_root / name] if (settings_root / name).is_dir() else [])
 
 
-def mod_problems(config, mods, index):
+def mod_problems(config, mods, index, order_notes=None):
+    """Why a mod list cannot load. With order_notes (a list), load-order violations go there instead: the set breaks them on
+    purpose, and the game only warns about them."""
     problems, position = [], {}
+    order = problems if order_notes is None else order_notes
     for i, package_id in enumerate(mods):
         if package_id in position:
             problems.append(f"{package_id} is listed twice")
@@ -287,16 +293,19 @@ def mod_problems(config, mods, index):
         for options in info.dependencies:
             if not any(o in position for o in options):
                 problems.append(f"{info.name} ({package_id}) requires {' or '.join(options)}")
-        problems += [f"{package_id} must load after {o}" for o in sorted(info.load_after) if position.get(o, -1) > position[package_id]]
-        problems += [f"{package_id} must load before {o}" for o in sorted(info.load_before) if -1 < position.get(o, -1) < position[package_id]]
+        order += [f"{package_id} must load after {o}" for o in sorted(info.load_after) if position.get(o, -1) > position[package_id]]
+        order += [f"{package_id} must load before {o}" for o in sorted(info.load_before) if -1 < position.get(o, -1) < position[package_id]]
     return problems
 
 
 def prepare_userdata(config, selection):
     """Write the isolated save-data folder for this launch. The player's own Config is only read."""
-    problems = mod_problems(config, selection.mods, index := mod_index())
+    order_notes = [] if selection.name in config.loose_order_sets else None
+    problems = mod_problems(config, selection.mods, index := mod_index(), order_notes)
     if problems:
         raise RuntimeError(f"mod set {selection.name!r} is not loadable:\n  " + "\n  ".join(problems))
+    for note in order_notes or []:
+        print(f"NOTE: mod set {selection.name!r} breaks a load-order rule on purpose (looseOrderSets): {note}")
     folder = config.userdata / "Config"
     folder.mkdir(parents=True, exist_ok=True)
     if not (folder / "Prefs.xml").is_file() and config.prefs_path.is_file():
@@ -883,7 +892,60 @@ def release_problems(config, mod_dir):
     return problems
 
 
-PERF_BATCH, PERF_CASE, DUBS_ID = "perf", "perf.mod-tick", "dubwise.dubsperformanceanalyzer.steam"
+PREVIEW_LIMIT = 1024 * 1024
+
+
+GAME_NAMESPACES = ("RimWorld", "Verse", "LudeonTK", "UnityEngine", "System")
+
+
+def static_problems(config, mod_dir):
+    """Mistakes in the mod's files that the game loads without an error and no case is sure to reach.
+    Returns (problems, warnings): a class name is matched against the DLL's bytes, which can't prove a type is missing."""
+    mod_dir, problems, warnings = Path(mod_dir), [], []
+    preview = mod_dir / "About/Preview.png"
+    # Steam rejects a larger Workshop preview mid-upload with a bare result code; the game does not check.
+    if preview.is_file() and preview.stat().st_size > PREVIEW_LIMIT:
+        problems.append(f"About/Preview.png is {preview.stat().st_size:,} bytes; Steam takes at most {PREVIEW_LIMIT:,}")
+    shipped = mod_dir / config.production_dll.relative_to(config.runtime_root)
+    dll = shipped.read_bytes() if shipped.is_file() else b""
+
+    def in_dll(name):
+        # Metadata keeps namespaces and type names as separate zero-terminated UTF-8 strings, and stores a name that ends
+        # another (MendingStand, IMendingStand) once, so only the end of the string can be matched.
+        return name.encode() + b"\0" in dll
+
+    # Only the folders the mod ships: a working tree can hold other mods' files under its work folders.
+    for path in sorted(p for folder in config.runtime_folders for p in (mod_dir / folder).rglob("*.xml")):
+        folders = path.relative_to(mod_dir).parts[:-1]
+        if "Defs" not in folders and "Patches" not in folders:
+            continue
+        shown = path.relative_to(mod_dir).as_posix()
+        try:
+            root = ET.parse(path).getroot()
+        except (OSError, ET.ParseError) as error:
+            problems.append(f"{shown} is not well-formed XML: {error}")
+            continue
+        # The game reads only <Patch>; any other root discards every operation in the file without a word.
+        if "Patches" in folders and root.tag != "Patch":
+            problems.append(f"{shown} has root <{root.tag}>, not <Patch>, so the game ignores every operation in it")
+        names = set()
+        for element in root.iter():
+            names.add(element.get("Class"))
+            if isinstance(element.tag, str) and element.tag.endswith("Class") and len(element) == 0:
+                names.add((element.text or "").strip())
+        for name in sorted(n for n in names if n and "." in n):
+            namespace, _, type_name = name.rpartition(".")
+            # A renamed class leaves the XML pointing at nothing, and the comp or worker silently never attaches. The DLL
+            # also holds the namespaces of types it only uses, so a class of another mod that the code never names can be
+            # reported here: a warning, to be checked by hand.
+            if namespace.split(".")[0] in GAME_NAMESPACES or not dll or not in_dll(namespace):
+                continue
+            if not in_dll(type_name.split("+")[0]):
+                warnings.append(f"{shown} names {name}, but {shipped.name} holds no type name {type_name}; renamed or removed?")
+    return problems, warnings
+
+
+PERF_BATCH, PERF_CASE, DUBS_ID ="perf", "perf.mod-tick", "dubwise.dubsperformanceanalyzer.steam"
 
 
 def perf_problems(config, mod_dir):
@@ -1199,11 +1261,16 @@ def run_command(argv=None):
     if args.command == "release-check":
         mod_dir = args.mod_dir or config.mod_dir
         problems = release_problems(config, mod_dir)
+        static, static_warnings = static_problems(config, mod_dir)
         perf, measured, warnings = perf_problems(config, mod_dir)
-        for problem in problems + perf:
+        warnings = static_warnings + warnings
+        for problem in problems + static + perf:
             print("FAIL:", problem)
         if not problems:
             print("PASS: no developer test runner in", mod_dir)
+        if not static:
+            print("PASS: patch roots and preview size in", mod_dir)
+        problems += static
         for line in measured if not perf else []:
             print("PASS: perf", line)
         for warning in warnings:

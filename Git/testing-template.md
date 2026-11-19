@@ -69,6 +69,7 @@ Include only applicable scenarios. A RimWorld mod always includes a performance 
 - Separate expected and observed behavior.
 - Never mark an unrun test as passed because code compiles.
 - Count only behaviour checks as passes. Report evidence-only cases (a screenshot was written), skips and variants not run separately, as evidence or as not covered.
+- Keep a list of what the tests do not cover. Include any passing check that is narrower than its name suggests, and say what it would miss.
 - Date any case count or run time written into instructions, or name where it is measured.
 - Record environment, configuration, permissions, and version differences when relevant.
 - Label destructive, production, billing, and externally visible tests as approval-gated.

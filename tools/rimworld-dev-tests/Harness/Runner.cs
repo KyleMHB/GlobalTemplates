@@ -89,7 +89,7 @@ public static class TestRunner
         TestPresentation.Reset(!batches.Any(b => b.IsShowcase));
         foreach (var b in batches) b.Archive(request, dir);
         var progress = new Progress { RunId = runId, Request = request, StartedUtc = DateTime.UtcNow.ToString("o"), Stage = Controller.LeaveGame,
-            FailOnModErrors = Harness.Settings.FailOnModErrors };
+            FailOnModErrors = Harness.Settings.FailOnModErrors, FailOnWarnings = Harness.Settings.FailOnWarnings };
         File.WriteAllText(ActivePointer, dir);
         controller = new Controller(progress, dir);
         controller.Save();
@@ -156,7 +156,7 @@ internal class Controller
     private string cancelReason, quickstartError;
     private bool recordingReady, batchOpen;
     // Errors logged from here on are the run's; totals go into the report whatever each case's result.
-    private readonly long runErrorMark = CaseErrors.Mark, runModErrorMark = CaseErrors.ModMark;
+    private readonly long runErrorMark = CaseErrors.Mark, runModErrorMark = CaseErrors.ModMark, runWarningMark = CaseErrors.WarningMark;
 
     public Controller(Progress progress, string dir)
     {
@@ -533,7 +533,7 @@ internal class Controller
             {
                 c.Result = Results.Error;
                 c.Reason = reason ?? "case started but never finished";
-                c.CaptureOutcome(ctx?.ErrorMark ?? -1);
+                c.CaptureOutcome(ctx?.ErrorMark ?? -1, ctx?.WarningMark ?? -1);
             }
             // Unselected cases may have run (shared setup, prerequisites); only the selected ones decide the result.
             if (progress.Request.Filtered)
@@ -579,6 +579,7 @@ internal class Controller
     {
         progress.LoggedErrors = (int)(CaseErrors.Mark - runErrorMark);
         progress.ModErrors = (int)(CaseErrors.ModMark - runModErrorMark);
+        progress.Warnings = (int)(CaseErrors.WarningMark - runWarningMark);
     }
 
     internal static void Close(Progress progress, string status, string reason)

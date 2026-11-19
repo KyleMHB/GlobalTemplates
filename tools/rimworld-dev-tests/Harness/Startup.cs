@@ -90,6 +90,8 @@ public static class DevTestsStartup
         harmony.Patch(logError, prefix: new HarmonyMethod(typeof(CaseErrors), nameof(CaseErrors.EnterLogError)),
             finalizer: new HarmonyMethod(typeof(CaseErrors), nameof(CaseErrors.ExitLogError)));
         UnityEngine.Application.logMessageReceivedThreaded += CaseErrors.Unity;
+        harmony.Patch(Need(AccessTools.Method(typeof(Log), nameof(Log.Warning), new[] { typeof(string) }), "Log.Warning(string)"),
+            prefix: new HarmonyMethod(typeof(CaseErrors), nameof(CaseErrors.RecordWarning)));
         harmony.Patch(Need(AccessTools.Method(typeof(Verse.AI.Pawn_JobTracker), nameof(Verse.AI.Pawn_JobTracker.StartJob)), "Pawn_JobTracker.StartJob"), postfix: new HarmonyMethod(typeof(JobStarts), nameof(JobStarts.After)));
         TestRunner.Active = true;
         RunnerSession.Read();

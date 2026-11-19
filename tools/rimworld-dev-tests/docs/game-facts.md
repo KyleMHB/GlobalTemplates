@@ -39,3 +39,15 @@ Minimized is a separate path: frames, `OnUpdate` and mod per-frame hooks still r
 ## Random state
 
 `Verse.Rand.set_Seed` logs an error only when `stateStack` is empty. `PushState(seed)` first saves the current compressed seed/iteration state, then seeds; `PopState` restores it. `StateCompressed` is private. `Verse.Root.Update` calls `EnsureStateStackEmpty`, which warns and pops leaked states each frame, so a state cannot remain pushed across frames. A scoped-stream prototype preserved draws across frame waits but not across simulation ticks. Equal creation seeds do not establish repeatable simulation.
+
+## Reported by other projects, not verified here
+
+From the Shift Change mod's `docs/TESTING.md` (github.com/beverage/shift-change), which cites decompiled RimWorld 1.6.4871. None has been rechecked against 1.7 IL or seen in a run of this harness. Verify one before a case depends on it, then move it to its section above.
+
+- **Jobs are pooled:** a finished job goes back to `JobMaker`'s pool and is handed out again for the pawn's next job, so a `Job` reference held across its own end becomes a different job. Hold `pawn.jobs.curDriver`, which is built per job, and read the `JobCondition` the job ended with: the driver also changes when a job fails its reservations before doing anything.
+- **Generated colonists are not tended:** `PawnGenerator` tends a new pawn's conditions only when it is not joining the player. A colonist who rolled asthma or similar starts untended, and `HealthAIUtility.ShouldSeekMedicalRestUrgent` then treats them as an urgent patient. `Kit.Worker` removes such conditions.
+- **An eating pawn reserves its food:** a pawn that is eating holds a claim on the food (`PhysicalInteractionReservationManager`) that no other pawn can reserve past, whatever its faction. A wild animal eating a case's ingredients blocks the job the case waits for. Runner colonies remove wild animals, so this needs another eater.
+- **Speed cannot be set during the fade-in:** `TickManager`'s speed setter and `Pause` do nothing while a new game fades in. Shift Change sets the `curTimeSpeed` field directly.
+- **Path requests are served by the map:** `Pawn_PathFollower` waits on a request that `Map.MapPreTick` serves from `TickManager.DoSingleTick`. Ticking one pawn alone leaves it one cell short forever. The runner steps `DoSingleTick`, so cases are not affected; never tick a pawn by itself.
+- **Stranger in black:** when a colony that has held three colonists loses its last one, `StorytellerComp_Triggered` queues `StrangerInBlackJoin` 180 ticks later. The runner skips `Storyteller.StorytellerTick` in its colonies, which should stop the queued incident from firing; that has not been checked.
+- **Odyssey vacuum drifts:** `VacuumComponent` exchanges air between neighbouring rooms every 250 ticks, so a vacuum value a case sets moves unless it is held each tick (`EveryTick`).
