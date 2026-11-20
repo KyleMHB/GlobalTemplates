@@ -2,6 +2,13 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
+## 2026-11-20
+
+### Added
+
+- Added the `unslop` skill to `.agents/skills`, so the skill the public-copy templates call for ships with the repository. Link it like the other bundled skills.
+- `unslop` gained a final check that the rewrite kept every name, number, command, link and claim, and rules 34 to 40 for one-line closers, staged run-ups, rebuttals of claims nobody made, repeated sentence openings, headings repeated in the first sentence, writing about the document, and re-explaining what the reader knows.
+
 ## 2026-11-19
 
 ### Added
