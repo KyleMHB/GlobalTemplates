@@ -1,6 +1,6 @@
 {
   "name": "interview-pane",
   "version": "0.1.1",
-  "description": "A pane beside the chat where Claude interviews you with recommended answers, staged and sent as one round.",
+  "description": "A pane beside the chat where Claude interviews you, each question prefilled with its recommended answer and the round sent back in one message.",
   "types": "./types/index.d.ts"
 }

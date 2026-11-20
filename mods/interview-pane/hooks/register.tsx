@@ -150,6 +150,15 @@ async function sendRound($: Engine) {
 const writeDiscussion = ($: Engine, id: string, text: string) =>
   update($, discussions, current => ({ ...current, [id]: text }))
 
+// A key in `discussions` is what shows a card's Discuss box, so pressing
+// Discuss adds an empty one and pressing it again removes it, text and all.
+const toggleDiscussion = ($: Engine, id: string) =>
+  update($, discussions, current => {
+    if (current[id] === undefined) return { ...current, [id]: '' }
+    const { [id]: _closed, ...rest } = current
+    return rest
+  })
+
 // Grill-me's own wording: the recommended option, then why.
 function recommendationLine(question: InterviewQuestion): string | undefined {
   const why = question.recommendation?.trim() ?? ''
@@ -520,19 +529,32 @@ export const register: Register = on => {
               )}
 
               {/* Discussion goes out with the round and leaves the question
-                  unanswered, so its answer is not sent this time. */}
-              {isLive && (
+                  unanswered, so its answer is not sent this time. The box
+                  shows only on the cards where Discuss was pressed. */}
+              {isLive && talk[question.id] !== undefined && (
                 <Box flexDirection="row" gap="sm" alignItems="center">
                   <Text dimColor={!isDiscussing}>Discuss:</Text>
                   <Box flexDirection="column" flexGrow={1}>
                     <Input
                       key={`discuss:${question.id}`}
                       placeholder="Ask about the reasoning or a trade-off"
+                      autoFocus
                       value={talk[question.id] ?? ''}
                       onInput={value => void writeDiscussion($, question.id, value)}
                       onSubmit={value => void writeDiscussion($, question.id, value)}
                     />
                   </Box>
+                </Box>
+              )}
+
+              {isLive && (
+                <Box flexDirection="row">
+                  <Button
+                    key={`discuss-toggle:${question.id}`}
+                    label={talk[question.id] === undefined ? 'Discuss' : 'Cancel discussion'}
+                    dimColor
+                    onPress={() => toggleDiscussion($, question.id)}
+                  />
                 </Box>
               )}
             </Box>

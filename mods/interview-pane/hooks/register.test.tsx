@@ -181,6 +181,9 @@ test('discussion goes out with the round and leaves the question open', async ($
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
 
   await ui.press({ key: 'opt:q1:B' })
+  // The Discuss box shows only once Discuss is pressed on that card.
+  expect(await ui.find({ key: 'discuss:q1' })).toBeUndefined()
+  await ui.press({ key: 'discuss-toggle:q1' })
   await ui.input({ key: 'discuss:q1', text: 'What about freelancers?', kind: 'change' })
   await ui.input({ key: 'text:q2', text: 'Launch', kind: 'change' })
   expect(await statusOf(ui, 'q1')).toBe('discussing')
@@ -196,8 +199,9 @@ test('discussion goes out with the round and leaves the question open', async ($
     ].join('\n'),
   ])
 
-  // q1 stays open with its pick, which sends next round.
+  // q1 stays open with its pick, which sends next round; its box closed.
   expect(await statusOf(ui, 'q1')).toBe('yours')
+  expect(await ui.find({ key: 'discuss:q1' })).toBeUndefined()
   await ui.press({ key: 'submit' })
   expect(sent[1]).toBe('Interview answers\n- q1 "Who needs this?": B — Teams')
   await ui.unmount()
