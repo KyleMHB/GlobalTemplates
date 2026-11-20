@@ -7,7 +7,7 @@ Search this index by symptom, required state or game type. Read only the matchin
 | Wall, blocked cell, footprint, interaction cell, sliding, tween, facing, rotation, walking backwards | [Placement](placement.md) | Shared validation/observer; shared facing update |
 | Bed, patient, LayDown, downed, CurrentBed, asleep, prisoner room | [Beds](beds.md) | Mod-local helpers; game facts shared |
 | Prerequisite, guard, setup failure, coverage, control, reload | [Measurements](measurements.md) | Shared `Kit.Require`, `Wait.While`, `SkipUnlessPassed` |
-| Session, focus, minimize, seed, research lost, wild animals, modpack, mod list, ModsConfig, foreign patch before startup, conflict gate | [Environment](environment.md) | Shared runner plus local modpack examples |
+| Install leased to another checkout, session, focus, minimize, seed, research lost, wild animals, modpack, mod list, ModsConfig, foreign patch before startup, conflict gate | [Environment](environment.md) | Shared runner plus local modpack examples |
 | Meditation, joy full, Meditate ends, psyfocus | [game facts](../game-facts.md#pawns-beds-and-rooms) | Holding psyfocus cannot measure its natural gain |
 | Worker, work priority, research, bills, job never starts | `Harness/Kit.cs` (`Worker`) | Shared `Kit.Worker` |
 | Apparel never picked up, optimize apparel, outfit policy, wear, gear up | [game facts](../game-facts.md#pawns-beds-and-rooms) | Put test apparel in a stockpile |

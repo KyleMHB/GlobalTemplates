@@ -1,9 +1,10 @@
 # Runner environment pitfalls
 
-Keywords: session, focus, background, minimized, seed, random, research, wildlife, modpack, mod list, ModsConfig, savedatafolder, map size, def changed, setting leaked, faction missing, DLC, error noise.
+Keywords: session, lease, install busy, another checkout, worktree, focus, background, minimized, seed, random, research, wildlife, modpack, mod list, ModsConfig, savedatafolder, map size, def changed, setting leaked, faction missing, DLC, error noise.
 
 | Symptom | Action and limit | Where to inspect |
 | --- | --- | --- |
+| Run or deploy refused: "the RimWorld install is leased to ..." | One checkout at a time owns the installed mod and the game. `run`, `self-check`, `install-dev` and a deploy script's `lease take` claim `work/install-lease.json`; `close-session` releases it. Run `status` to see the holder, then wait for its close-session or ask its session; never poll processes. A lease untouched for 30 minutes with the game closed, or whose checkout folder is gone, is free to take. Always end a loop with `close-session`, even after `--record` or `--quit-on-finish` runs. | `rimtest.py` (install lease) |
 | Batch stalls when unfocused | Launcher-owned processes reassert run-in-background without changing Prefs. Minimized map generation can still stall; restore the window. | `Harness/RunnerSession.cs`; [game facts](../game-facts.md#unfocused-and-minimized-windows) |
 | Later command uses an old build | Close the session, rebuild/deploy deliberately, launch again. Production, adapter, harness and runtime hashes must match. Each batch gets a new colony even when the process is reused. | `rimtest.py`, `Harness/RunnerSession.cs` |
 | Same seed gives different simulation | Creation is seeded; later simulation is not guaranteed repeatable. Never keep a Rand state pushed across frames. | [game facts](../game-facts.md#random-state) |

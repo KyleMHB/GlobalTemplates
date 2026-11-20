@@ -2,8 +2,13 @@
 
 Configured per mod by a devtests.json file:
 
-  python rimtest.py --config <mod>/DevTests/devtests.json run <batch...|run-all> [--mods SET] [--seed N] [--timeout S] [--startup-timeout S] [--quit-on-finish] [--keep-open]
+  python rimtest.py --config <mod>/DevTests/devtests.json run <batch...|run-all> [--mods SET] [--seed N] [--timeout S] [--startup-timeout S] [--quit-on-finish] [--keep-open] [--record [--frames N]]
   python rimtest.py --config ... close-session | latest [--batch B] | timings [run] | list | self-check | prune [--keep N] | release-check [mod_dir] | install-dev | remove-dev
+  python rimtest.py --config ... status | lease take|release [--purpose P] | frames [run] [--at 3,8,14 | --count N]
+
+Install lease: run, self-check, install-dev and a mod's deploy script (via `lease take`) claim work/install-lease.json for the
+checkout; close-session releases it. Another checkout is refused until then, or until the lease sits unused for 30 minutes
+with the game closed. `status` shows the holder, the game process and whether the installed mod matches this checkout.
 
 `run` reuses an idle launcher-owned RimWorld session at the main menu, or launches one, and sends the batch to it. The game
 window stays open with the progress panel; finish with close-session, which also removes the DevTests DLL. Several batches
@@ -46,7 +51,7 @@ import xml.etree.ElementTree as ET
 
 HARNESS_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(HARNESS_ROOT))
-from recording import Recording, find_ffmpeg
+from recording import Recording, extract_frames, find_ffmpeg, locate_ffmpeg
 
 DEFAULT_GAME_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\RimWorld")
 
@@ -797,6 +802,115 @@ def _close_session(config):
         process.close()
 
 
+# ---- Install lease: one checkout at a time owns the installed mod and the game ------------------------------------------
+# session_lock covers a single launcher command. The lease covers the whole loop (deploy, runs, close-session), so another
+# checkout or worktree cannot deploy over a tree under test or launch between two of its runs. It names the holder's checkout
+# so a refused agent knows whom it is waiting for, instead of polling processes and messaging other sessions.
+
+LEASE_PATH = HARNESS_ROOT / "work" / "install-lease.json"
+LEASE_IDLE_MINUTES = 30  # an untouched lease with no game running is abandoned
+
+
+def read_lease():
+    try:
+        return json.loads(LEASE_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def lease_stale(lease):
+    idle = time.time() - lease.get("touched", 0) > LEASE_IDLE_MINUTES * 60
+    return not Path(lease["holder"]).is_dir() or (idle and not process_running("RimWorld.exe"))
+
+
+def describe_lease(lease):
+    minutes = (time.time() - lease.get("touched", 0)) / 60
+    return (f"{lease['holder']} ({lease.get('mod', '?')}, {lease.get('purpose', '?')}), last used {minutes:.0f} min ago")
+
+
+def take_lease(config, purpose):
+    """Claim or refresh the lease for this checkout; RuntimeError names the other holder."""
+    holder = str(config.root.resolve())
+    lease = read_lease()
+    if lease and lease["holder"] != holder and not lease_stale(lease):
+        raise RuntimeError(f"the RimWorld install is leased to {describe_lease(lease)}. Wait until that checkout runs "
+                           f"close-session, or until it sits unused for {LEASE_IDLE_MINUTES} min with the game closed. "
+                           "`status` shows the holder.")
+    now = time.time()
+    since = lease["since"] if lease and lease["holder"] == holder else now
+    LEASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temp = LEASE_PATH.with_suffix(".tmp")
+    temp.write_text(json.dumps({"holder": holder, "mod": config.name, "purpose": purpose, "since": since, "touched": now}),
+                    encoding="utf-8")
+    temp.replace(LEASE_PATH)
+
+
+def release_lease(config):
+    lease = read_lease()
+    if lease and lease["holder"] == str(config.root.resolve()):
+        LEASE_PATH.unlink(missing_ok=True)
+        return True
+    return False
+
+
+def lease_command(config, action, purpose):
+    if action == "release":
+        print("Released the install lease." if release_lease(config) else "This checkout holds no lease.")
+        return 0
+    try:
+        take_lease(config, purpose)
+    except RuntimeError as error:
+        print("REFUSED:", error)
+        return 3
+    print(f"This checkout holds the install lease ({purpose}).")
+    return 0
+
+
+def status(config):
+    lease = read_lease()
+    if not lease:
+        print("Lease: free.")
+    else:
+        mine = lease["holder"] == str(config.root.resolve())
+        state = "this checkout" if mine else "stale, free to take" if lease_stale(lease) else "another checkout"
+        print(f"Lease: {state}: {describe_lease(lease)}")
+    print(f"RimWorld: {'running' if process_running(config.process_name) else 'closed'}.")
+    session = session_status(config)
+    if session:
+        age = time.time() - session.get("heartbeat", 0) / 1000
+        print(f"Runner session ({config.name}): {session.get('state')}, heartbeat {age:.0f} s ago.")
+    candidate, installed = runtime_manifest(config, config.runtime_root), runtime_manifest(config, config.mod_dir)
+    differences = [n for n in candidate.keys() | installed.keys() if candidate.get(n) != installed.get(n)]
+    print("Installed mod: matches this checkout." if not differences
+          else f"Installed mod: differs from this checkout in {len(differences)} file(s); deploy before running.")
+    return 0
+
+
+# ---- Recorded runs: stills for looking at art ----------------------------------------------------------------------------
+
+def recorded_run(config, run=None):
+    if run:
+        folder = Path(run) if Path(run).is_dir() else config.evidence_root / run
+    else:
+        folder = next((d for d in reversed(run_dirs(config)) if (d / "build.mp4").is_file()), None)
+    if not folder or not (folder / "build.mp4").is_file():
+        raise ValueError(f"no build.mp4 in {folder or 'any run'}; record a run with run --record")
+    return folder / "build.mp4"
+
+
+def frames(config, run=None, at=None, count=6, ffmpeg=None):
+    try:
+        video = recorded_run(config, run)
+        stills, sheet = extract_frames(locate_ffmpeg(ffmpeg), video, at, count)
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print("REFUSED:", error)
+        return 3
+    for seconds, still in stills:
+        print(f"{seconds:6.2f} s  {still}")
+    print("Sheet:", sheet)
+    return 0
+
+
 # ---- Single fresh process -----------------------------------------------------------------------------------------------
 
 def run_once(config, batch, seed, timeout, keep_open=False, record=False, ffmpeg=None, show_ui=False, mod_set=None, startup_timeout=300):
@@ -1196,6 +1310,17 @@ def run_command(argv=None):
     launch.add_argument("--ffmpeg", type=Path, help="FFmpeg build with gfxcapture support")
     launch.add_argument("--show-ui", action="store_true", help="keep the normal game HUD visible in recordings")
     launch.add_argument("--keep-open", action="store_true", help="fresh process, left paused after the run; close it to finish cleanup")
+    launch.add_argument("--frames", type=int, metavar="N", help="with --record: save N evenly spaced stills and a contact sheet "
+                                                               "from build.mp4 into the run's frames/ folder")
+    commands.add_parser("status", help="who holds the install lease, whether RimWorld runs, and whether the installed mod matches this checkout")
+    leaser = commands.add_parser("lease", help="take or release the install lease; a deploy script takes it before copying the mod")
+    leaser.add_argument("action", choices=("take", "release"))
+    leaser.add_argument("--purpose", default="deploy", help="shown to a checkout the lease refuses")
+    stills = commands.add_parser("frames", help="stills and a contact sheet from a recorded run's build.mp4, without launching RimWorld")
+    stills.add_argument("run", nargs="?", help="run folder name or path (default: the latest recorded run)")
+    stills.add_argument("--at", help="comma-separated seconds, e.g. 3,8,14 (default: --count evenly spaced stills)")
+    stills.add_argument("--count", type=int, default=6)
+    stills.add_argument("--ffmpeg", type=Path)
     check = commands.add_parser("release-check", help="verify a mod folder contains no developer test runner and its DLL passed the perf batch and its perf.* cases")
     check.add_argument("mod_dir", nargs="?", type=Path)
     commands.add_parser("close-session", help="close the idle runner session and remove the developer DLL")
@@ -1224,8 +1349,15 @@ def run_command(argv=None):
             parser.error("--timeout and --startup-timeout must be greater than zero")
         if args.keep_open and args.quit_on_finish:
             parser.error("--keep-open and --quit-on-finish cannot be combined")
-        if (args.ffmpeg or args.show_ui) and not args.record:
-            parser.error("--ffmpeg and --show-ui only apply with --record")
+        if (args.ffmpeg or args.show_ui or args.frames) and not args.record:
+            parser.error("--ffmpeg, --show-ui and --frames only apply with --record")
+        if args.frames is not None and args.frames < 1:
+            parser.error("--frames must be at least 1")
+        try:
+            take_lease(config, "run")
+        except RuntimeError as error:
+            print("REFUSED:", error)
+            return 3
         config.cases = [c for c in args.case if c.strip()]
         if any("," in c for c in config.cases):
             parser.error("--case takes one pattern each; repeat it for several")
@@ -1241,17 +1373,39 @@ def run_command(argv=None):
             return run_batches(config, args.batch, args.seed, args.timeout, args.mods, args.startup_timeout)
         args.batch = args.batch[0]
         if args.keep_open or args.quit_on_finish or args.record:
-            return run_once(config, args.batch, args.seed, args.timeout, args.keep_open, args.record, args.ffmpeg, args.show_ui, args.mods,
+            code = run_once(config, args.batch, args.seed, args.timeout, args.keep_open, args.record, args.ffmpeg, args.show_ui, args.mods,
                             args.startup_timeout)
-        return run_session(config, args.batch, args.seed, args.timeout, args.mods, args.startup_timeout)
+            take_lease(config, "run")  # refresh: a long recording should not read as idle
+            if args.frames and config.last_run_dir and (config.last_run_dir / "build.mp4").is_file():
+                frames(config, str(config.last_run_dir), count=args.frames, ffmpeg=args.ffmpeg)
+            return code
+        code = run_session(config, args.batch, args.seed, args.timeout, args.mods, args.startup_timeout)
+        take_lease(config, "run")
+        return code
     if args.command == "close-session":
-        return close_session(config)
+        code = close_session(config)
+        if code == 0 and release_lease(config):
+            print("Released the install lease.")
+        return code
+    if args.command == "status":
+        return status(config)
+    if args.command == "lease":
+        return lease_command(config, args.action, args.purpose)
+    if args.command == "frames":
+        at = [float(t) for t in args.at.split(",") if t.strip()] if args.at else None
+        return frames(config, args.run, at, args.count, args.ffmpeg)
     if args.command == "latest":
         return latest(config, args.batch)
     if args.command == "timings":
         return timings(config, args.run)
     if args.command == "list":
         return list_batches(config)
+    if args.command in ("self-check", "install-dev"):
+        try:
+            take_lease(config, args.command)
+        except RuntimeError as error:
+            print("REFUSED:", error)
+            return 3
     if args.command == "self-check":
         return self_check(config, args.seed)
     if args.command == "prune":

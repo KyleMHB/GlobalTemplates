@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import threading
@@ -11,12 +12,57 @@ import time
 START_ATTEMPTS, RETRY_DELAY = 3, 2
 
 
-def find_ffmpeg(explicit=None):
+def locate_ffmpeg(explicit=None):
+    """The FFmpeg to use, without checking what it can capture: --ffmpeg, then PATH, then the harness's work/ffmpeg/."""
     candidates = (Path.cwd() / "work/ffmpeg/ffmpeg.exe", Path(__file__).resolve().parent / "work/ffmpeg/ffmpeg.exe")
     local = next((str(path) for path in candidates if path.is_file()), None)
     executable = str(explicit) if explicit else shutil.which("ffmpeg") or local
     if not executable:
         raise ValueError("FFmpeg is missing. Put a Windows build in work/ffmpeg/ or pass --ffmpeg PATH.")
+    return executable
+
+
+def video_seconds(executable, video):
+    probe = subprocess.run([executable, "-hide_banner", "-i", str(video)], capture_output=True, text=True, timeout=30)
+    match = re.search(r"Duration: (\d+):(\d+):([\d.]+)", probe.stderr)
+    if not match:
+        raise ValueError(f"cannot read the length of {video}")
+    hours, minutes, seconds = match.groups()
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def extract_frames(executable, video, times=None, count=6, width=640, columns=None):
+    """Stills from a recording, for looking at art without a hand-written FFmpeg pipeline: frames/frame-NN.png at the given
+    seconds (or `count` evenly spaced through the clip) beside the video, and frames/frames.png, a contact sheet in reading order."""
+    video = Path(video)
+    length = video_seconds(executable, video)
+    if not times:
+        times = [round(length * (i + 0.5) / count, 2) for i in range(count)]
+    times = [t for t in times if 0 <= t < length]
+    if not times:
+        raise ValueError(f"no requested time falls inside the {length:.1f} s clip")
+    out = video.parent / "frames"
+    if out.is_dir():
+        shutil.rmtree(out)
+    out.mkdir()
+    stills = []
+    for index, at in enumerate(times, 1):
+        still = out / f"frame-{index:02d}.png"
+        subprocess.run([executable, "-hide_banner", "-loglevel", "error", "-ss", f"{at}", "-i", str(video), "-frames:v", "1",
+                        "-vf", f"scale={width}:-2", "-y", str(still)], check=True, timeout=60)
+        stills.append((at, still))
+    if columns is None:  # three across unless two leaves fewer empty cells (4 stills: 2x2, not 3+1)
+        columns = min(len(stills), 3) if len(stills) % 3 == 0 or len(stills) % 2 else 2
+    rows = -(-len(stills) // columns)
+    sheet = out / "frames.png"
+    subprocess.run([executable, "-hide_banner", "-loglevel", "error", "-i", str(out / "frame-%02d.png"),
+                    "-vf", f"tile={min(columns, len(stills))}x{rows}:padding=4:color=black", "-frames:v", "1", "-y", str(sheet)],
+                   check=True, timeout=60)
+    return stills, sheet
+
+
+def find_ffmpeg(explicit=None):
+    executable = locate_ffmpeg(explicit)
     help_result = subprocess.run([executable, "-hide_banner", "-h", "filter=gfxcapture"],
                                  capture_output=True, text=True, timeout=15)
     if "window_exe" not in help_result.stdout + help_result.stderr:
