@@ -1,0 +1,6 @@
+{
+  "name": "interview-pane",
+  "version": "0.1.1",
+  "description": "A pane beside the chat where Claude interviews you with recommended answers, staged and sent as one round.",
+  "types": "./types/index.d.ts"
+}
