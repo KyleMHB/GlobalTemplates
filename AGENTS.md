@@ -37,6 +37,7 @@ A project's own instructions for testing and verification take precedence over t
 - Restore temporary environment changes before delivery; after an interruption, prioritize safe restoration when work resumes.
 - Follow existing project conventions and prefer built-in APIs or existing utilities. Keep business logic, presentation, persistence, and integrations reasonably separated without over-abstracting.
 - Preserve public APIs and behavior unless the task requires changing them. Comments explain why. Follow established naming; absent a convention, use `camelCase` for values and functions, `PascalCase` for types, and `kebab-case` for files.
+- Make file edits with the edit tool. When a shell step needs more than a few lines of script, write the script to a file in the session's scratchpad and run that file: inline heredocs in Git Bash break on quotes and Windows backslashes, and worktree-isolated sessions refuse commands they cannot verify.
 - Never hardcode secrets or add external services, telemetry, production dependencies, destructive migrations, or data deletion without explicit approval.
 - Keep raw captures, generated reports, deployment copies, and temporary probes local or ignored. Commit only durable specifications, concise evidence summaries, and reusable tooling.
 
