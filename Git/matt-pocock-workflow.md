@@ -1,6 +1,6 @@
 # Matt Pocock engineering workflow
 
-Verified against upstream v1.3.1 on 6 October 2026. This is a routing reference, not a requirement to run every step for every change. Read the installed skill before applying it; its instructions govern that step. Check upstream again when upgrading the skills.
+Verified against upstream v1.3.2 on 20 November 2026. This is a routing reference, not a requirement to run every step for every change. Read the installed skill before applying it; its instructions govern that step. Check upstream again when upgrading the skills.
 
 These skills are optional integrations. Resolve available skills with [skill lookup](../skill-lookup.md). Use the active harness's invocation mechanism and preserve each skill's invocation policy. If a skill is absent, carry out the requested planning or implementation directly with the applicable repository rules. Do not claim to have run an unavailable skill.
 
@@ -40,17 +40,17 @@ Planning size and build size are separate decisions. A feature can be straightfo
 - Preserve the planning conversation through specification and ticket creation where practical. If context pressure requires compaction, do it at a phase boundary with decisions and source references retained.
 - Start each per-ticket implementation in a fresh context using its self-contained ticket. Work only tickets whose blockers are complete.
 - Run a retrospective in the session it examines, or supply that session's log.
-- In v1.3.1, `setup-matt-pocock-skills`, `grill-with-docs`, `wayfinder`, `to-spec`, `to-tickets`, `implement`, `implement-spec`, and `retro` are user-invoked. Recommend the next suitable command and respect explicit user invocation; a routing document does not automatically invoke the chain.
+- In v1.3.2, `setup-matt-pocock-skills`, `grill-with-docs`, `wayfinder`, `to-spec`, `to-tickets`, `implement`, `implement-spec`, and `retro` are user-invoked. Recommend the next suitable command and respect explicit user invocation; a routing document does not automatically invoke the chain.
 - Do not auto-invoke `tdd` or `code-review` during normal implementation unless the user explicitly asks for TDD or a review pass. An explicit `implement` or `implement-spec` invocation counts as that request for the steps those skills define. Load a skill through the mechanism available in the current harness only when explicitly requested.
 - For a design question that needs runnable evidence, use a prototype and bring its findings back into planning.
 
 ## Versioned sources
 
-- [v1.3.1 release](https://github.com/mattpocock/skills/releases/tag/v1.3.1)
-- [Workflow router](https://github.com/mattpocock/skills/blob/v1.3.1/skills/engineering/ask-matt/SKILL.md)
-- [Wayfinder](https://github.com/mattpocock/skills/blob/v1.3.1/skills/engineering/wayfinder/SKILL.md)
-- [To spec](https://github.com/mattpocock/skills/blob/v1.3.1/skills/engineering/to-spec/SKILL.md)
-- [To tickets](https://github.com/mattpocock/skills/blob/v1.3.1/skills/engineering/to-tickets/SKILL.md)
-- [Implement](https://github.com/mattpocock/skills/blob/v1.3.1/skills/engineering/implement/SKILL.md)
-- [PR body](https://github.com/mattpocock/skills/blob/v1.3.1/skills/engineering/pr/SKILL.md)
-- [Invocation conventions](https://github.com/mattpocock/skills/blob/v1.3.1/.agents/invocation.md)
+- [v1.3.2 release](https://github.com/mattpocock/skills/releases/tag/v1.3.2)
+- [Workflow router](https://github.com/mattpocock/skills/blob/v1.3.2/skills/engineering/ask-matt/SKILL.md)
+- [Wayfinder](https://github.com/mattpocock/skills/blob/v1.3.2/skills/engineering/wayfinder/SKILL.md)
+- [To spec](https://github.com/mattpocock/skills/blob/v1.3.2/skills/engineering/to-spec/SKILL.md)
+- [To tickets](https://github.com/mattpocock/skills/blob/v1.3.2/skills/engineering/to-tickets/SKILL.md)
+- [Implement](https://github.com/mattpocock/skills/blob/v1.3.2/skills/engineering/implement/SKILL.md)
+- [PR body](https://github.com/mattpocock/skills/blob/v1.3.2/skills/engineering/pr/SKILL.md)
+- [Invocation conventions](https://github.com/mattpocock/skills/blob/v1.3.2/.agents/invocation.md)
