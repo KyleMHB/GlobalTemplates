@@ -19,7 +19,7 @@ Search headings with `rg -n '^##|^###' Steam/rimworld/rimworld-art-guide.md` fro
 | Style, borders, facets, palette or animation | [Visual style](#visual-style-reference), [prompt scaffold](#prompt-scaffold) |
 | Review or deployment | [Review](#5-review-at-the-sizes-and-paths-the-game-uses), [deployment](#6-deploy-the-reviewed-scope), [acceptance record](#acceptance-record) |
 | Vanilla references, naming or file conventions | [Vanilla art source](#vanilla-art-source) |
-| Art reads as generated, or does not fit vanilla | [Measured vanilla rendering](#measured-vanilla-rendering), [fit to vanilla](#fit-to-vanilla), [outline defaults](#outline-defaults) |
+| Art reads as generated, or does not fit vanilla | [Fit to vanilla](#fit-to-vanilla), then [measured vanilla rendering](#measured-vanilla-rendering) for contour or detail questions |
 | Weapon sprite points the wrong way when held | [Weapon orientation](#weapon-orientation) |
 
 ## Vanilla art source
@@ -156,6 +156,8 @@ Follow project permissions and deployment tooling. List intended files/fields, c
 ## Visual style reference
 
 ### Fit to vanilla
+
+When the target is vanilla, attach a same-role vanilla sprite to the first design request. Use the same facing where available, or the closest example with comparable construction and materials. Before deriving other views, compare the first candidate beside it at the same pixels per cell. On a bed, where does the pillow meet the mattress through shadow, how deep is the blanket fold, and which frame edges carry ink? Describe those choices in the prompt. Use an icon's outlines when drawing icons.
 
 Choose the style anchor from where the mod will be played. For a modpack, measure the neighbouring mods' art as well as vanilla, and ask the author which of the mod's own pieces they consider right; those pieces are the house style. Vanilla then supplies a short list of rules, not the whole look. A mod with a strong identity, such as faceted crystals, should not be pushed all the way to vanilla's smooth shading and muted colour.
 
@@ -294,7 +296,7 @@ Inspect comparable vanilla definitions, inherited drawing modes/layers, footprin
 
 Supply real references and fill only relevant fields:
 
-> Draw [object and direction] using A for [edit target or layout]. Keep [silhouette, parts, positions, visible faces and overlaps]. Change [named surface or component]. B supplies [material, palette or rendering trait]. At game size, [identifying feature] should read first. Leave [surface] quiet. Use [reference contour weight and broad shading], with dark borders at material joins and value changes within a material. Show the complete object on a transparent [canvas and framing].
+> Draw [object and direction] using A for [edit target or layout]. Keep [silhouette, parts, positions, visible faces and overlaps]. Change [named surface or component]. B supplies [material, palette or rendering trait]. At game size, [identifying feature] should read first. Leave [surface] quiet. Match B's contour at [edge]. Show [material or contact] through [the value change, shadow or ink visible in B]. Show the complete object on a transparent [canvas and framing].
 
 For a directional edit, use the [target-view procedure](#3-derive-the-other-views-from-that-design) and give each attachment a single job. This example changes a bed's material.
 
