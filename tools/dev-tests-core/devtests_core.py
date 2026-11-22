@@ -102,7 +102,10 @@ def wait_for(predicate, seconds, step=0.5):
 
 
 class GameProcess:
-    """Hold the exact Windows process so timeout cleanup cannot target a reused PID."""
+    """Hold the exact Windows process so timeout cleanup cannot target a reused PID. An adapter subclass may reword the
+    errors, so its output keeps naming the process the way that launcher always has."""
+    OPEN_ERROR = "could not open the game process"
+    KILL_ERROR = "could not stop the timed-out game"
 
     def __init__(self, pid):
         from ctypes import wintypes
@@ -119,7 +122,7 @@ class GameProcess:
         # PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE
         self.handle = self.api.OpenProcess(0x100000 | 0x1000 | 0x0001, False, pid)
         if not self.handle:
-            raise OSError(ctypes.get_last_error(), "could not open the game process")
+            raise OSError(ctypes.get_last_error(), self.OPEN_ERROR)
 
     def alive(self):
         return self.api.WaitForSingleObject(self.handle, 0) == 258  # WAIT_TIMEOUT
@@ -132,7 +135,7 @@ class GameProcess:
     def kill(self):
         if self.alive():
             if not self.api.TerminateProcess(self.handle, 1):
-                raise OSError(ctypes.get_last_error(), "could not stop the timed-out game")
+                raise OSError(ctypes.get_last_error(), self.KILL_ERROR)
             self.api.WaitForSingleObject(self.handle, 5000)
 
     def close(self):

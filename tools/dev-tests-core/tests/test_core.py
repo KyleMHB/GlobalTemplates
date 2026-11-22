@@ -60,6 +60,19 @@ class ResultTest(TempCase):
         self.assertRegex(core.new_run_id("smoke"), r"^\d{8}-\d{6}-smoke$")
 
 
+class GameProcessTest(unittest.TestCase):
+    def test_an_adapter_names_the_process_in_its_own_words(self):
+        class RunnerProcess(core.GameProcess):
+            OPEN_ERROR = "could not open runner process"
+        # Pid 0 is the idle process, which no caller may open.
+        with self.assertRaises(OSError) as default:
+            core.GameProcess(0)
+        self.assertIn("could not open the game process", str(default.exception))
+        with self.assertRaises(OSError) as adapted:
+            RunnerProcess(0)
+        self.assertIn("could not open runner process", str(adapted.exception))
+
+
 class LocalConfigTest(TempCase):
     def test_environment_then_local_file_then_default(self):
         local = self.write("tool.local.json", json.dumps({"gameDir": "D:/Local"}))
