@@ -44,7 +44,6 @@ from fnmatch import fnmatchcase
 from contextlib import contextmanager
 import ctypes
 from dataclasses import dataclass
-from datetime import datetime
 import hashlib
 import json
 import os
@@ -54,27 +53,25 @@ import shutil
 import subprocess
 import sys
 import time
-import traceback
 import uuid
 import xml.etree.ElementTree as ET
 
+# __file__ resolves through the RimWorldDevTests junction mod wrappers use, so the core is found beside this tool's real folder.
 HARNESS_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(HARNESS_ROOT))
+sys.path.insert(0, str(HARNESS_ROOT.parent / "dev-tests-core"))
 from recording import Recording, extract_frames, find_ffmpeg, locate_ffmpeg
+import devtests_core as core
+from devtests_core import DEADLINE_GRACE, LOG_KEEP_BYTES, LOG_TAIL_LINES, RUN_FILES, game_deadline, new_run_id, result_code, tail
 
 DEFAULT_GAME_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\RimWorld")
+LOCAL_CONFIG = HARNESS_ROOT / "rimtest.local.json"
 
 
 def resolve_game_dir():
     """RIMWORLD_DIR, then gameDir in the untracked rimtest.local.json, then the default Steam location."""
-    if os.environ.get("RIMWORLD_DIR"):
-        return Path(os.environ["RIMWORLD_DIR"])
-    local = HARNESS_ROOT / "rimtest.local.json"
-    if local.exists():
-        game_dir = json.loads(local.read_text(encoding="utf-8")).get("gameDir")
-        if game_dir:
-            return Path(game_dir)
-    return DEFAULT_GAME_DIR
+    # An empty gameDir counts as unset, so `or` rather than core.local_path.
+    return Path(os.environ.get("RIMWORLD_DIR") or core.local_value(LOCAL_CONFIG, "gameDir") or DEFAULT_GAME_DIR)
 
 
 GAME_DIR = resolve_game_dir()
@@ -83,10 +80,6 @@ WORKSHOP_DIR = GAME_DIR.parents[1] / "workshop/content/294100"
 SAVE_DATA = Path.home() / "AppData/LocalLow/Ludeon Studios/RimWorld by Ludeon Studios"
 USER_MODS_CONFIG = SAVE_DATA / "Config/ModsConfig.xml"
 AUTOSAVE_PREFS = ("autosaveIntervalDays", "autosavesCount")
-LOG_TAIL_LINES = 40
-LOG_KEEP_BYTES = 20 * 1024 * 1024
-# The game closes its run this long before the launcher's limit, so the report is written before the kill.
-DEADLINE_GRACE = 15
 # The harness's copy of Prefs.xml keeps the player's display settings but not these, so runs behave the same on every machine.
 # --language replaces langFolderName for one run.
 DEFAULT_LANGUAGE = "English"
@@ -491,10 +484,6 @@ def runtime_config_difference(config, environment):
     return ": " + "; ".join(differences) if differences else ""
 
 
-def tail(path, lines=LOG_TAIL_LINES):
-    return "\n".join(Path(path).read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]) if Path(path).is_file() else f"(missing: {path})"
-
-
 def print_summary(run_dir, manifest):
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "deployment.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -553,12 +542,6 @@ def check_batch(config, batch, manifest):
         raise RuntimeError(f"unknown batch {batch!r}; known: {', '.join(known)}")
 
 
-def game_deadline(deadline, graceful=True):
-    """UTC milliseconds at which the game should close its run, or 0 when the limit is too short to leave a margin."""
-    remaining = deadline - time.monotonic()
-    return int((time.time() + remaining - DEADLINE_GRACE) * 1000) if graceful and remaining > 2 * DEADLINE_GRACE else 0
-
-
 class StartupFailure(Exception):
     pass
 
@@ -583,11 +566,6 @@ def print_diagnostics(config, run_dir):
         print(f"Last {LOG_TAIL_LINES} lines of {config.player_log}:\n{tail(config.player_log)}")
     else:
         print(f"{config.player_log} belongs to another game launched since ({player_log_owner(config)}), so its lines are not this run's.")
-
-
-def new_run_id(batch, seed, cases=None):
-    """A run filtered by --case says so in its id, so its folder is never mistaken for a full batch run."""
-    return f"{datetime.now():%Y%m%d-%H%M%S}-{re.sub(r'[^a-z0-9-]', '-', batch.lower())}-s{seed}" + ("-cases" if cases else "")
 
 
 def select_case_batches(config, batches, cases):
@@ -635,35 +613,9 @@ def session_lock(config):
             msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
 
 
-class SessionProcess:
-    """Hold the exact Windows process so timeout cleanup cannot target a reused PID."""
-
-    def __init__(self, pid):
-        from ctypes import wintypes
-        self.api = ctypes.WinDLL("kernel32", use_last_error=True)
-        self.api.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-        self.api.OpenProcess.restype = wintypes.HANDLE
-        self.api.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-        self.api.WaitForSingleObject.restype = wintypes.DWORD
-        self.api.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
-        self.api.TerminateProcess.restype = wintypes.BOOL
-        self.api.CloseHandle.argtypes = [wintypes.HANDLE]
-        self.api.CloseHandle.restype = wintypes.BOOL
-        self.handle = self.api.OpenProcess(0x100000 | 0x1000 | 0x0001, False, pid)
-        if not self.handle:
-            raise OSError(ctypes.get_last_error(), "could not open runner process")
-
-    def alive(self):
-        return self.api.WaitForSingleObject(self.handle, 0) == 258
-
-    def kill(self):
-        if self.alive():
-            if not self.api.TerminateProcess(self.handle, 1):
-                raise OSError(ctypes.get_last_error(), "could not stop timed-out runner process")
-            self.api.WaitForSingleObject(self.handle, 5000)
-
-    def close(self):
-        self.api.CloseHandle(self.handle)
+class SessionProcess(core.GameProcess):
+    OPEN_ERROR = "could not open runner process"
+    KILL_ERROR = "could not stop timed-out runner process"
 
 
 def session_status(config):
@@ -848,15 +800,6 @@ def _run_claimed(config, batch, seed, timeout, startup_timeout, graceful, manife
     return result_code(report, problems)
 
 
-def result_code(report, problems, recording_error=None):
-    if report.get("status") == "refused":
-        return 3
-    if report.get("status") == "interrupted":
-        print("Run interrupted:", report.get("reason"))
-        return 2
-    return 0 if report.get("overallPass") and not problems and not recording_error else 1
-
-
 def close_session(config):
     try:
         with session_lock(config):
@@ -911,12 +854,8 @@ STARTUP_HOLD_SECONDS = 600
 
 def max_games():
     """maxGames in rimtest.local.json, else DEFAULT_MAX_GAMES."""
-    local = HARNESS_ROOT / "rimtest.local.json"
-    if local.exists():
-        value = json.loads(local.read_text(encoding="utf-8")).get("maxGames")
-        if isinstance(value, int) and value >= 1:
-            return value
-    return DEFAULT_MAX_GAMES
+    value = core.local_value(LOCAL_CONFIG, "maxGames")
+    return value if isinstance(value, int) and value >= 1 else DEFAULT_MAX_GAMES
 
 
 def process_created(pid):
@@ -945,9 +884,7 @@ def process_created(pid):
 
 
 def rimworld_pids():
-    listing = subprocess.run(["tasklist", "/FI", "IMAGENAME eq RimWorld.exe", "/FO", "CSV", "/NH"],
-                             capture_output=True, text=True, check=False).stdout
-    return [int(row[1]) for row in (line.split('","') for line in listing.splitlines()) if len(row) > 1 and row[1].isdigit()]
+    return core.pids("RimWorld.exe")
 
 
 def same_path(a, b):
@@ -1504,72 +1441,18 @@ def perf_problems(config, mod_dir):
 
 # ---- Evidence -----------------------------------------------------------------------------------------------------------
 
-RUN_FILES = ("report.json", "progress.json", "deployment.json")
-
-
 def run_dirs(config):
     """Run folders under the evidence root, oldest first by their latest report, progress or deployment file."""
-    def stamp(folder):
-        return max((p.stat().st_mtime for name in RUN_FILES if (p := folder / name).is_file()), default=None)
-    folders = [(stamp(d), d) for d in config.evidence_root.iterdir() if d.is_dir()] if config.evidence_root.is_dir() else []
-    return [d for when, d in sorted((f for f in folders if f[0] is not None), key=lambda f: f[0])]
+    return core.run_dirs(config.evidence_root)
 
 
 def latest(config, batch=None):
-    for folder in reversed(run_dirs(config)):
-        report_path, progress_path = folder / "report.json", folder / "progress.json"
-        if report_path.is_file():
-            request = json.loads(report_path.read_text(encoding="utf-8")).get("request") or {}
-        elif progress_path.is_file():
-            progress = json.loads(progress_path.read_text(encoding="utf-8"))
-            request = progress.get("Request") or {}
-        else:
-            continue
-        if batch and request.get("Batch") != batch and batch not in (request.get("Batches") or []):
-            continue
-        if report_path.is_file():
-            print(folder / "summary.txt")
-            print((folder / "summary.txt").read_text(encoding="utf-8"))
-            return 0
-        # Never show an older run as the latest: a killed or crashed run has no report until the next run recovers it.
-        finished = sum(1 for c in progress.get("Cases") or [] if c.get("Result") != "running")
-        print(f"Run {folder.name} has no report: it is still running, or the game was killed or crashed before it finished.")
-        print(f"Request: {', '.join(request.get('Batches') or [request.get('Batch', '?')])} seed {request.get('Seed')}; "
-              f"stage {progress.get('Stage')}, batch {progress.get('BatchIndex', 0) + 1}, {finished} case(s) finished.")
-        print(f"The next run closes it as interrupted and writes its report. Progress: {progress_path}")
-        return 2
-    print("No matching run found.")
-    return 1
+    return core.latest(config.evidence_root, batch)
 
 
 def timings(config, run=None):
-    """Per-batch wall clock from a run's events.jsonl, slowest first. A batch runs from its first event to the next batch's
-    first event; the last one ends at the run's final event."""
-    if run:
-        folder = Path(run) if Path(run).is_dir() else config.evidence_root / run
-    else:
-        folder = next((d for d in reversed(run_dirs(config)) if (d / "events.jsonl").is_file()), None)
-    path = folder / "events.jsonl" if folder else None
-    if not path or not path.is_file():
-        print(f"No events.jsonl in {folder}." if folder else "No run with events.jsonl found.")
-        return 1
-    events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    starts = []
-    for event in events:
-        if event.get("batch") and (not starts or starts[-1][0] != event["batch"]):
-            starts.append((event["batch"], event["monotonicSeconds"]))
-    if not starts:
-        print(f"No batch events in {path}.")
-        return 1
-    end = events[-1]["monotonicSeconds"]
-    rows = [(batch, (starts[i + 1][1] if i + 1 < len(starts) else end) - start) for i, (batch, start) in enumerate(starts)]
-    total = end - events[0]["monotonicSeconds"]
-    width = max(len(batch) for batch, _ in rows)
-    print(f"Run {folder.name}")
-    for batch, seconds in sorted(rows, key=lambda row: -row[1]):
-        print(f"  {batch:<{width}}  {seconds:8.1f} s  {100 * seconds / total if total else 0:5.1f}%")
-    print(f"  {'total':<{width}}  {total:8.1f} s")
-    return 0
+    """Per-batch wall clock from a run's events.jsonl, slowest first."""
+    return core.timings(config.evidence_root, run)
 
 
 def list_batches(config):
@@ -1593,14 +1476,7 @@ def prune(config, keep):
     """Delete all but the newest run folders. Only this command removes evidence."""
     try:
         with session_lock(config):
-            old = run_dirs(config)[:-keep]
-            freed = 0
-            for folder in old:
-                freed += sum(p.stat().st_size for p in folder.rglob("*") if p.is_file())
-                shutil.rmtree(folder)
-                print("Removed", folder.name)
-            print(f"Removed {len(old)} run folder(s), {freed / 1e6:.0f} MB, from {config.evidence_root}; kept the newest {keep}.")
-            return 0
+            return core.prune(config.evidence_root, keep)
     except (OSError, RuntimeError) as error:
         print("REFUSED:", error)
         return 3
@@ -1676,12 +1552,7 @@ def main(argv=None):
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="backslashreplace")
-    try:
-        return run_command(argv)
-    except Exception:  # any launcher fault gets its own exit code, so it is never read as a test failure (1)
-        traceback.print_exc()
-        print("LAUNCHER ERROR: the launcher itself failed; this is not a test result.")
-        return 4
+    return core.guarded(run_command, argv)
 
 
 def run_command(argv=None):
