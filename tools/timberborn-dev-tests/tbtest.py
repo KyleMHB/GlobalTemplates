@@ -156,36 +156,53 @@ class InstalledMod:
     source: str  # "Steam Workshop" or "Local"
     folder: str
     mod_id: str
+    required: tuple = ()  # RequiredMods Ids from the manifest the game reads
 
     @property
     def enabled_key(self):
         return f"ModEnabled.{self.source}.{self.folder}.{self.mod_id}"
 
 
-def version_tuple(text):
+def version_tuple(text, game_version=GAME_VERSION):
+    # ModRepository reads a bare "version-" folder as the running game's version.
+    if not text:
+        return tuple(game_version)
     parts = [int(p) for p in text.split(".") if p.isdigit()]
     return tuple(parts + [0] * (4 - len(parts)))
 
 
-def manifest_id(folder, game_version=GAME_VERSION):
-    """The Id the game reads for a mod folder: from the highest version-* subfolder not above the game version."""
+def read_manifest(folder, game_version=GAME_VERSION):
+    """The manifest the game reads for a mod folder, from the highest version-* subfolder not above the game version.
+    None when the game would skip the folder."""
     # Directory.GetDirectories("version-*") is case-insensitive on Windows; several mods ship "Version-1.1".
     versions = [d for d in folder.iterdir() if d.is_dir() and d.name.lower().startswith("version-")]
     if versions:
-        eligible = [d for d in versions if version_tuple(d.name[len("version-"):]) <= game_version]
+        def version(d):
+            return version_tuple(d.name[len("version-"):], game_version)
+        eligible = [d for d in versions if version(d) <= tuple(game_version)]
         if not eligible:
             return None
-        folder = max(eligible, key=lambda d: version_tuple(d.name[len("version-"):]))
+        folder = max(eligible, key=version)
     manifest = folder / "manifest.json"
     if not manifest.is_file():
         return None
     text = manifest.read_text(encoding="utf-8-sig", errors="replace")
-    try:
-        return json.loads(text).get("Id")
-    except json.JSONDecodeError:
-        # Some community manifests are not strict JSON (the game's reader is lenient); fall back to the Id field.
+    for candidate in (text, re.sub(r",\s*([}\]])", r"\1", text)):
+        try:
+            data = json.loads(candidate)
+            break
+        except json.JSONDecodeError:
+            continue
+    else:
+        # Some community manifests are not JSON at all (the game's reader is lenient); fall back to the Id field.
         match = re.search(r'"Id"\s*:\s*"([^"]+)"', text)
-        return match.group(1) if match else None
+        return {"Id": match.group(1)} if match else None
+    return data if isinstance(data, dict) else None
+
+
+def manifest_id(folder, game_version=GAME_VERSION):
+    manifest = read_manifest(folder, game_version)
+    return manifest.get("Id") if manifest else None
 
 
 def installed_mods(workshop, mods, game_version=GAME_VERSION):
@@ -195,15 +212,43 @@ def installed_mods(workshop, mods, game_version=GAME_VERSION):
         for folder in sorted(base.iterdir()) if base.is_dir() else []:
             if not folder.is_dir() or (source == "Local" and folder.name == RUNNER_FOLDER):
                 continue
-            mod_id = manifest_id(folder, game_version)
-            if mod_id:
-                found.append(InstalledMod(source, folder.name, mod_id))
+            manifest = read_manifest(folder, game_version)
+            if manifest and manifest.get("Id"):
+                required = tuple(r["Id"] for r in manifest.get("RequiredMods") or [] if isinstance(r, dict) and r.get("Id"))
+                found.append(InstalledMod(source, folder.name, manifest["Id"], required))
     return found
 
 
-def disable_values(mods):
-    """Isolation (D3): a 0 for each mod's enable key. T3 narrows the list to the mods outside the selected set."""
-    return {unity_pref_name(mod.enabled_key): [4, 0] for mod in mods}  # 4 = REG_DWORD
+def select_mods(mod_id, installed):
+    """The mod under test plus its transitive RequiredMods, one installed folder per Id, and why the set cannot load.
+    Ids match exactly, as the game compares them. OptionalMods stay out of the set."""
+    by_id = {}
+    for mod in installed:
+        # A Local and a Workshop copy of one Id both load (the game only flags duplicates within a source), so keep one:
+        # the Local copy, which is the developer's working build.
+        if mod.mod_id not in by_id or (mod.source == "Local" and by_id[mod.mod_id].source != "Local"):
+            by_id[mod.mod_id] = mod
+    if mod_id not in by_id:
+        return [], [f"the mod under test ({mod_id}) is not installed in Mods or the Workshop"]
+    selected, problems, queue, seen = [], [], [mod_id], {mod_id}
+    while queue:
+        mod = by_id[queue.pop(0)]
+        selected.append(mod)
+        for dependency in mod.required:
+            if dependency in seen:
+                continue
+            seen.add(dependency)
+            if dependency in by_id:
+                queue.append(dependency)
+            else:
+                problems.append(f"{mod.mod_id} requires {dependency}, which is not installed")
+    return selected, problems
+
+
+def disable_values(mods, keep=()):
+    """Isolation (D3): a 1 for each kept mod's enable key, so a mod the player switched off still loads, and a 0 for
+    every other installed mod."""
+    return {unity_pref_name(mod.enabled_key): [4, 1 if mod in keep else 0] for mod in mods}  # 4 = REG_DWORD
 
 
 # ---- Request, install and launch -------------------------------------------------------------------------------------------
