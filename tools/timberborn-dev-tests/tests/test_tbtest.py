@@ -135,14 +135,52 @@ class IsolationPlanTest(unittest.TestCase):
         self.assertEqual(writes, {"changed": [4, 1], "deleted": [3, {"b64": "AA=="}]})
 
 
+class ConfigTest(TempCase):
+    def test_devtests_json_names_the_mod_under_test(self):
+        path = self.write("MyMod/DevTests/devtests.json", json.dumps({"name": "My Mod", "modId": "My.Mod"}))
+        config = tbtest.load_config(path)
+        self.assertEqual((config.name, config.mod_id, config.root), ("My Mod", "My.Mod", (self.root / "MyMod").resolve()))
+
+    def test_devtests_json_without_mod_id_is_refused(self):
+        path = self.write("MyMod/DevTests/devtests.json", json.dumps({"name": "My Mod"}))
+        with self.assertRaisesRegex(ValueError, "modId"):
+            tbtest.load_config(path)
+
+
+class FakePrefs:
+    def __init__(self):
+        self.restored = []
+
+    def restore(self, snapshot):
+        self.restored.append(snapshot)
+        return len(snapshot)
+
+
+class RecoveryTest(TempCase):
+    def test_state_left_by_a_killed_run_is_restored_and_cleared(self):
+        state = self.write("work/state.json", json.dumps({"runId": "run-1", "prefs": {"a": [4, 1]}}))
+        self.write(f"Mods/{tbtest.RUNNER_FOLDER}/request.json")
+        prefs = FakePrefs()
+        message = tbtest.recover(state, self.root / "Mods", prefs)
+        self.assertEqual(prefs.restored, [{"a": [4, 1]}])
+        self.assertFalse(state.exists())
+        self.assertFalse((self.root / "Mods" / tbtest.RUNNER_FOLDER).exists())
+        self.assertIn("run-1", message)
+
+    def test_nothing_left_behind_means_nothing_to_restore(self):
+        prefs = FakePrefs()
+        self.assertIsNone(tbtest.recover(self.root / "work/state.json", self.root / "Mods", prefs))
+        self.assertEqual(prefs.restored, [])
+
+
 class RequestAndLaunchTest(TempCase):
     def test_request_carries_the_batch_map_and_deadline(self):
-        request = tbtest.build_request("run-1", self.root / "run-1", "smoke", "_Mini", speed=30, hours=2, deadline_ms=123, probe_keys=["k"])
+        request = tbtest.build_request("run-1", self.root / "run-1", "smoke", "_Mini", speed=30, hours=2, deadline_ms=123, probe_prefs={"k": 0})
         self.assertEqual(request["Batch"], "smoke")
         self.assertEqual(request["Map"], "_Mini")
         self.assertEqual(request["DeadlineUtcMs"], 123)
         self.assertEqual(request["RunDir"], str(self.root / "run-1"))
-        self.assertEqual(request["ProbePrefKeys"], ["k"])
+        self.assertEqual(request["ProbePrefs"], {"k": 0})
         self.assertTrue(request["SettlementName"])
 
     def test_launch_goes_through_steam_with_the_log_in_the_run_folder(self):

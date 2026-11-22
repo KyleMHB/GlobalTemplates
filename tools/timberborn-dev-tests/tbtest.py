@@ -1,15 +1,16 @@
 """Launcher for the Timberborn developer test harness (TimberbornDevTests): the Timberborn adapter over dev-tests-core.
 
-  python tbtest.py run smoke [--map _Mini] [--hours H] [--speed S] [--timeout S] [--startup-timeout S]
+  python tbtest.py [--config <mod>/DevTests/devtests.json] run smoke [--map _Mini] [--hours H] [--speed S] [--timeout S] [--startup-timeout S]
   python tbtest.py restore | latest | prune [--keep N]
 
-`run` builds the runner, installs it into Documents/Timberborn/Mods/TimberbornDevTests with a request.json, disables every
-other mod through the game's own PlayerPrefs keys, launches Timberborn through Steam with its log in the run folder, waits
-for report.json, then restores the PlayerPrefs key exactly, removes the runner and checks the player's data was untouched.
-Each run starts a fresh game (D4). Run folders are under work/runs.
+`run` builds the runner, installs it into Documents/Timberborn/Mods/TimberbornDevTests with a request.json, and isolates
+mods through the game's own PlayerPrefs keys: the mod named by devtests.json ("modId") and its transitive RequiredMods stay
+enabled, every other installed mod is disabled (all of them without --config). It launches Timberborn through Steam with its
+log in the run folder, waits for report.json, then restores the PlayerPrefs key exactly, removes the runner and checks the
+player's data was untouched. Each run starts a fresh game (D4). Run folders are under work/runs.
 
 The user runs `run` and `restore` from their own terminal: registry writes made from an agent's sandboxed session never
-reach the game (SPEC D2). If a run is interrupted, the next `run` refuses until `restore` puts the key back.
+reach the game (SPEC D2). If a launcher was killed mid-run, the next `run` restores the key first; `restore` does it alone.
 
 Exit codes: 0 pass, 1 failures or isolation breach, 2 timeout, crash or no report, 3 refusal, 4 launcher error.
 """
@@ -51,7 +52,6 @@ IGNORED_CHANGES = ("steam_autocloud.vdf",)
 # Launcher-side run files: a run folder holding only these is a run whose game never reported.
 LAUNCHER_FILES = ("launcher.json", "heartbeat.json")
 RUN_FILES = core.RUN_FILES + LAUNCHER_FILES
-PROBE_KEYS = 2
 
 
 # ---- Paths -----------------------------------------------------------------------------------------------------------------
@@ -87,6 +87,21 @@ class Paths:
     @property
     def default_log(self):
         return Path(os.environ["USERPROFILE"]) / "AppData/LocalLow/Mechanistry/Timberborn/Player.log"
+
+
+@dataclass
+class Config:
+    name: str
+    mod_id: str  # the manifest Id of the mod under test
+    root: Path  # the mod's checkout: <root>/DevTests/devtests.json
+
+
+def load_config(path):
+    path = Path(path).resolve()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not data.get("modId"):
+        raise ValueError(f'{path} needs "modId": the manifest Id of the mod under test')
+    return Config(name=data.get("name") or data["modId"], mod_id=data["modId"], root=path.parent.parent)
 
 
 def resolve_paths():
@@ -253,10 +268,12 @@ def disable_values(mods, keep=()):
 
 # ---- Request, install and launch -------------------------------------------------------------------------------------------
 
-def build_request(run_id, run_dir, batch, map_name, speed, hours, deadline_ms, probe_keys=()):
+def build_request(run_id, run_dir, batch, map_name, speed, hours, deadline_ms, probe_prefs=None):
+    """probe_prefs maps each enable key the launcher wrote (raw, as PlayerPrefs.HasKey takes it) to the value written; the
+    starter refuses the run if the game sees any of them missing or different."""
     return {"RunId": run_id, "RunDir": str(run_dir), "Batch": batch, "Mode": "new", "Map": map_name,
             "SettlementName": f"DevTests-{run_id}", "Speed": speed, "GameHours": hours, "DeadlineUtcMs": deadline_ms,
-            "ProbePrefKeys": list(probe_keys)}
+            "ProbePrefs": dict(probe_prefs or {})}
 
 
 def runner_manifest():
@@ -326,26 +343,29 @@ def write_summary(run_dir, run_id, report, launcher):
 
 # ---- Commands --------------------------------------------------------------------------------------------------------------
 
-def restore(paths, prefs):
-    if not STATE.is_file():
-        print("Nothing to restore.")
-        return 0
-    if core.pids(PROCESS):
-        print("REFUSED: Timberborn is still running; close it first (Unity writes PlayerPrefs on exit).")
-        return 3
-    state = json.loads(STATE.read_text(encoding="utf-8"))
+def recover(state_file, mods_dir, prefs):
+    """Undo what a run left behind (its launcher was killed before its finally block): the PlayerPrefs key back to the
+    run's snapshot exactly, and the runner folder removed. Call only while Timberborn is closed. None when nothing was left."""
+    state_file = Path(state_file)
+    if not state_file.is_file():
+        return None
+    state = json.loads(state_file.read_text(encoding="utf-8"))
     changed = prefs.restore(state["prefs"])
-    shutil.rmtree(paths.mods / RUNNER_FOLDER, ignore_errors=True)
-    STATE.unlink()
-    print(f"Restored {changed} PlayerPrefs value(s) from run {state.get('runId')}; removed {paths.mods / RUNNER_FOLDER}.")
+    runner = Path(mods_dir) / RUNNER_FOLDER
+    shutil.rmtree(runner, ignore_errors=True)
+    state_file.unlink()
+    return f"Restored {changed} PlayerPrefs value(s) left by run {state.get('runId')}; removed {runner}."
+
+
+def restore(paths, prefs):
+    if core.pids(PROCESS):
+        print("REFUSED: Timberborn is running; close it first (Unity writes PlayerPrefs on exit).")
+        return 3
+    print(recover(STATE, paths.mods, prefs) or "Nothing to restore.")
     return 0
 
 
 def refusal(paths):
-    if STATE.is_file():
-        return "a previous run did not restore the player's environment; run `python tbtest.py restore` first"
-    if core.pids(PROCESS):
-        return "Timberborn is running; the launcher only drives a game it starts itself, and Steam allows one game at a time"
     if not core.pids("steam.exe"):
         return "Steam is not running; the game needs it"
     if not paths.game_dir.is_dir():
@@ -353,28 +373,45 @@ def refusal(paths):
     return None
 
 
-def run(args, paths, prefs):
+def run(args, paths, prefs, config=None):
+    if core.pids(PROCESS):
+        print("REFUSED: Timberborn is running; the launcher only drives a game it starts itself, and Steam allows one game "
+              "at a time")
+        return 3
+    # Restore at the next start (D3): a launcher killed mid-run left the player's mods disabled.
+    recovered = recover(STATE, paths.mods, prefs)
+    if recovered:
+        print(recovered, flush=True)
     reason = refusal(paths)
     if reason:
         print("REFUSED:", reason)
         return 3
+    mods = installed_mods(paths.workshop, paths.mods)
+    selected = []
+    if config:
+        selected, problems = select_mods(config.mod_id, mods)
+        if problems:
+            print(f"REFUSED: {config.name}'s mod set cannot load:\n  " + "\n  ".join(problems))
+            return 3
     dlls = build_runner()
     run_id = core.new_run_id(args.batch)
     run_dir = EVIDENCE / run_id
     run_dir.mkdir(parents=True)
     started = time.monotonic()
     deadline = started + args.timeout
-    mods = installed_mods(paths.workshop, paths.mods)
     request = build_request(run_id, run_dir, args.batch, args.map, args.speed, args.hours, core.game_deadline(deadline),
-                            [m.enabled_key for m in mods[:PROBE_KEYS]])
+                            {m.enabled_key: 1 if m in selected else 0 for m in mods})
     snapshot = prefs.read()
     protected_before, reports_before = core.tree_snapshot(*paths.protected), core.tree_snapshot(paths.error_reports)
     STATE.write_text(json.dumps({"runId": run_id, "prefs": snapshot}), encoding="utf-8")
-    launcher = {"runId": run_id, "request": request, "problems": [], "modsDisabled": len(mods)}
+    launcher = {"runId": run_id, "request": request, "problems": [], "modUnderTest": config and config.mod_id,
+                "modsSelected": [m.enabled_key for m in selected], "modsDisabled": len(mods) - len(selected)}
+    if recovered:
+        launcher["recovered"] = recovered
     timed_out = False
     print(f"Run {run_id}: evidence {run_dir}", flush=True)
     try:
-        timed_out = drive(args, paths, prefs, mods, dlls, request, run_dir, launcher, started, deadline)
+        timed_out = drive(args, paths, prefs, mods, selected, dlls, request, run_dir, launcher, started, deadline)
     finally:
         launcher["wallSeconds"] = round(time.monotonic() - started, 1)
         # Preflight refused any running Timberborn, so one running now is the launcher's own.
@@ -405,10 +442,10 @@ def run(args, paths, prefs):
     return code
 
 
-def drive(args, paths, prefs, mods, dlls, request, run_dir, launcher, started, deadline):
+def drive(args, paths, prefs, mods, selected, dlls, request, run_dir, launcher, started, deadline):
     """Isolate, install, launch and wait for the report. True when the run hit its time limit."""
     # Isolation only writes values; the finally block in run() restores the snapshot taken before this.
-    prefs.apply([], disable_values(mods))
+    prefs.apply([], disable_values(mods, keep=selected))
     install_runner(dlls, paths.mods, request)
     command = launch_command(steam_exe(), run_dir / "Player.log")
     launcher["command"] = command
@@ -439,6 +476,8 @@ def drive(args, paths, prefs, mods, dlls, request, run_dir, launcher, started, d
 
 def run_command(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--config", type=Path,
+                        help="the mod's DevTests/devtests.json; run keeps that mod and its RequiredMods enabled (default: no mods)")
     commands = parser.add_subparsers(dest="command", required=True)
     launch = commands.add_parser("run", help="launch Timberborn and run a batch in a new game (user's terminal only)")
     launch.add_argument("batch", help="batch to run; this runner build has only smoke")
@@ -464,8 +503,9 @@ def run_command(argv=None):
         return restore(paths, prefs)
     if args.timeout <= 0 or args.startup_timeout <= 0:
         parser.error("--timeout and --startup-timeout must be greater than zero")
+    config = load_config(args.config) if args.config else None
     WORK.mkdir(parents=True, exist_ok=True)
-    return run(args, paths, prefs)
+    return run(args, paths, prefs, config)
 
 
 def main(argv=None):
