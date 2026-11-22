@@ -39,7 +39,6 @@ class ResultTest(TempCase):
         self.assertEqual(self.code({"status": "complete", "overallPass": True}, ["user save modified"]), 1)
         self.assertEqual(self.code({"status": "interrupted", "overallPass": False}), 2)
         self.assertEqual(self.code({"status": "refused"}), 3)
-        self.assertEqual(self.code(None), 2)
 
     def test_short_limit_sends_no_game_deadline(self):
         self.assertEqual(core.game_deadline(time.monotonic() + 20), 0)
@@ -109,7 +108,14 @@ class LatestTest(TempCase):
         self.assertEqual(code, 2)
         self.assertIn("run-2 has no report", text)
         self.assertIn("1 case(s) finished", text)
+        self.assertIn("Request: a seed 1; stage segment", text)
         self.assertNotIn("older run PASS", text)
+
+    def test_an_unfinished_run_without_a_seed_names_none(self):
+        self.write("evidence/run-1/progress.json", json.dumps({"Request": {"Batch": "a"}, "Stage": "segment", "Cases": []}))
+        code, text = self.latest()
+        self.assertIn("Request: a; stage segment", text)
+        self.assertNotIn("seed", text)
 
     def test_batch_filter_matches_a_run_all_that_included_it(self):
         self.write("evidence/run-1/report.json", json.dumps({"request": {"Batch": "run-all", "Batches": ["diagnostic", "a"]}}))
@@ -159,6 +165,16 @@ class TimingsAndPruneTest(TempCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(core.prune(self.root / "evidence", 2), 0)
         self.assertEqual(sorted(p.name for p in (self.root / "evidence").iterdir()), ["run-2", "run-3"])
+
+    def test_newest_cases_takes_each_case_from_its_newest_measuring_run(self):
+        self.write("evidence/new/report.json", json.dumps({"cases": [
+            {"Id": "perf.a", "Result": "skip", "CoverageReason": "not-selected"}, {"Id": "perf.b", "Result": "fail"}]}))
+        self.write("evidence/old/report.json", json.dumps({"cases": [{"Id": "perf.a", "Result": "pass"}, {"Id": "perf.b", "Result": "pass"}]}))
+        self.write("evidence/broken/report.json", "{")
+        folders = [self.root / "evidence" / name for name in ("broken", "new", "old")]
+        found = core.newest_cases(folders, {"perf.a", "perf.b"})
+        self.assertEqual({case_id: (folder.name, case["Result"]) for case_id, (folder, _, case) in found.items()},
+                         {"perf.a": ("old", "pass"), "perf.b": ("new", "fail")})
 
 
 class ProtectedDataTest(TempCase):

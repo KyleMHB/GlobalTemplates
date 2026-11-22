@@ -518,12 +518,8 @@ def keep_player_log(config, run_dir):
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "Player.log.txt").write_text(note + "\n", encoding="utf-8")
         return
-    try:
-        with config.player_log.open("rb") as source:
-            source.seek(max(0, config.player_log.stat().st_size - LOG_KEEP_BYTES))
-            (run_dir / "Player.log").write_bytes(source.read())
-    except OSError as error:
-        print(f"Player.log was not copied: {error}")
+    if not core.keep_log(config.player_log, run_dir):
+        print(f"Player.log was not copied: could not read {config.player_log}")
 
 
 def known_batches(config, developer_hash):
@@ -1407,20 +1403,10 @@ def perf_problems(config, mod_dir):
     targeted = {case: batch["id"] for batch in listed.get("batches") or [] if batch.get("id") != PERF_BATCH
                 for case in batch.get("cases") or [] if case.startswith("perf.") and case != PERF_CASE}
     wanted = {PERF_CASE: command, **{case: f"run {batch}" for case, batch in targeted.items()}}
-    found, shipped_hash = {}, sha256(shipped)
-    for folder in reversed(run_dirs(config)):
-        if len(found) == len(wanted):
-            break
-        try:
-            report = json.loads((folder / "report.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        for case in report.get("cases") or []:
-            # A --case run that left the case out did not measure it; an older full run may have.
-            if case.get("CoverageReason") == "not-selected":
-                continue
-            if case.get("Id") in wanted and case.get("Id") not in found:
-                found[case["Id"]] = (folder.name, report, case)
+    shipped_hash = sha256(shipped)
+    # A --case run that left a case out did not measure it; the core skips those records, so an older full run counts.
+    found = {case_id: (folder.name, report, case)
+             for case_id, (folder, report, case) in core.newest_cases(reversed(run_dirs(config)), wanted).items()}
     problems, passed = [], []
     for case_id, run in wanted.items():
         if case_id not in found:
@@ -1442,7 +1428,7 @@ def perf_problems(config, mod_dir):
 # ---- Evidence -----------------------------------------------------------------------------------------------------------
 
 def run_dirs(config):
-    """Run folders under the evidence root, oldest first by their latest report, progress or deployment file."""
+    """Run folders under the evidence root, oldest first by their newest run file (core.RUN_FILES)."""
     return core.run_dirs(config.evidence_root)
 
 
@@ -1477,7 +1463,7 @@ def prune(config, keep):
     try:
         with session_lock(config):
             return core.prune(config.evidence_root, keep)
-    except (OSError, RuntimeError) as error:
+    except RuntimeError as error:
         print("REFUSED:", error)
         return 3
 

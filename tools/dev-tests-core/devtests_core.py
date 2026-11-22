@@ -19,6 +19,8 @@ import time
 import traceback
 
 PASS, FAILED, NO_REPORT, REFUSED, LAUNCHER_ERROR = 0, 1, 2, 3, 4
+# Read-only commands (latest, timings, list) that find nothing to show.
+NO_MATCH = 1
 # The game closes its run this long before the launcher's limit, so the report is written before the kill.
 DEADLINE_GRACE = 15
 LOG_TAIL_LINES = 40
@@ -62,8 +64,7 @@ def game_deadline(deadline, graceful=True):
 
 
 def result_code(report, problems, recording_error=None):
-    if report is None:
-        return NO_REPORT
+    """The exit code of a run that wrote its report; a launcher maps a missing report to NO_REPORT itself."""
     if report.get("status") == "refused":
         return REFUSED
     if report.get("status") == "interrupted":
@@ -174,17 +175,18 @@ def latest(evidence_root, batch=None, run_files=RUN_FILES, unfinished_files=()):
             summary = folder / "summary.txt"
             print(summary)
             print(summary.read_text(encoding="utf-8") if summary.is_file() else f"(no summary.txt; see {report_path})")
-            return 0
+            return PASS
         # Never show an older run as the latest: a killed or crashed run has no report until the next run recovers it.
         finished = sum(1 for c in progress.get("Cases") or [] if c.get("Result") != "running")
         print(f"Run {folder.name} has no report: it is still running, or the game was killed or crashed before it finished.")
         if progress:
-            print(f"Request: {', '.join(request.get('Batches') or [request.get('Batch', '?')])} seed {request.get('Seed')}; "
+            seed = f" seed {request['Seed']}" if request.get("Seed") is not None else ""
+            print(f"Request: {', '.join(request.get('Batches') or [request.get('Batch', '?')])}{seed}; "
                   f"stage {progress.get('Stage')}, batch {progress.get('BatchIndex', 0) + 1}, {finished} case(s) finished.")
             print(f"The next run closes it as interrupted and writes its report. Progress: {progress_path}")
-        return 2
+        return NO_REPORT
     print("No matching run found.")
-    return 1
+    return NO_MATCH
 
 
 def timings(evidence_root, run=None, run_files=RUN_FILES):
@@ -198,7 +200,7 @@ def timings(evidence_root, run=None, run_files=RUN_FILES):
     path = folder / "events.jsonl" if folder else None
     if not path or not path.is_file():
         print(f"No events.jsonl in {folder}." if folder else "No run with events.jsonl found.")
-        return 1
+        return NO_MATCH
     events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     starts = []
     for event in events:
@@ -206,7 +208,7 @@ def timings(evidence_root, run=None, run_files=RUN_FILES):
             starts.append((event["batch"], event["monotonicSeconds"]))
     if not starts:
         print(f"No batch events in {path}.")
-        return 1
+        return NO_MATCH
     end = events[-1]["monotonicSeconds"]
     rows = [(batch, (starts[i + 1][1] if i + 1 < len(starts) else end) - start) for i, (batch, start) in enumerate(starts)]
     total = end - events[0]["monotonicSeconds"]
@@ -215,7 +217,27 @@ def timings(evidence_root, run=None, run_files=RUN_FILES):
     for batch, seconds in sorted(rows, key=lambda row: -row[1]):
         print(f"  {batch:<{width}}  {seconds:8.1f} s  {100 * seconds / total if total else 0:5.1f}%")
     print(f"  {'total':<{width}}  {total:8.1f} s")
-    return 0
+    return PASS
+
+
+def newest_cases(folders, wanted):
+    """For each wanted case Id, (folder, report, case) from the first of the folders (newest first) whose report.json
+    recorded it. A case a --case run left out (CoverageReason "not-selected") was not measured, so an older record counts.
+    Release checks use it to find each perf case's latest measurement."""
+    found = {}
+    for folder in folders:
+        if len(found) == len(wanted):
+            break
+        try:
+            report = json.loads((Path(folder) / "report.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for case in report.get("cases") or []:
+            if case.get("CoverageReason") == "not-selected":
+                continue
+            if case.get("Id") in wanted and case.get("Id") not in found:
+                found[case["Id"]] = (Path(folder), report, case)
+    return found
 
 
 def prune(evidence_root, keep, run_files=RUN_FILES):
@@ -228,10 +250,10 @@ def prune(evidence_root, keep, run_files=RUN_FILES):
             shutil.rmtree(folder)
             print("Removed", folder.name)
         print(f"Removed {len(old)} run folder(s), {freed / 1e6:.0f} MB, from {evidence_root}; kept the newest {keep}.")
-        return 0
+        return PASS
     except OSError as error:
         print("REFUSED:", error)
-        return 3
+        return REFUSED
 
 
 # ---- Protected data: prove the player's files were not touched -------------------------------------------------------------
