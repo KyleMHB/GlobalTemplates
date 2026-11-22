@@ -168,6 +168,7 @@ public static class RunReport
         written = true;
         // A run that ends before the main menu (a crash in a mod's starter, a refusal) closes the startup window here.
         ModErrors.EndStartup();
+        ModErrors.ReadFailSetting();
         var request = Runner.Request;
         Data["status"] = status;
         Data["reason"] = reason;

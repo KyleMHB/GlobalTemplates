@@ -27,12 +27,11 @@ public static class ModErrors
     // Called from the runner's starter, after every mod's assemblies are loaded and before any other mod's starter runs.
     internal static void Configure(RunRequest request)
     {
-        HarnessSettings settings = null;
-        // A broken settings class must not stop the runner's starter: the main menu reports it when it builds the batches.
-        try { settings = Harness.Settings; }
+        // Nothing the mod's settings class does may throw out of the runner's starter: the main menu reports a broken one
+        // when it builds the batches.
+        try { Marker = Harness.Settings?.ErrorMarker; }
         catch (Exception ex) { Runner.Log("HarnessSettings unavailable for the startup check: " + ex.Message); }
-        Marker = settings?.ErrorMarker ?? request.ModName;
-        FailOnModErrors = settings?.FailOnModErrors ?? false;
+        Marker ??= request.ModName;
         if (Marker == null) return;
         var wanted = new HashSet<string>(request.ModAssemblies ?? new List<string>());
         var assemblies = AppDomain.CurrentDomain.GetAssemblies();
@@ -85,6 +84,13 @@ public static class ModErrors
             loggedDuring++;
             if (mod) during++;
         }
+    }
+
+    // Read when the report is written, after every mod's starter has run (the setting may depend on state a starter sets).
+    internal static void ReadFailSetting()
+    {
+        try { FailOnModErrors = Harness.Settings?.FailOnModErrors ?? false; }
+        catch (Exception ex) { Runner.Log("HarnessSettings.FailOnModErrors threw; treated as false: " + ex.Message); }
     }
 
     // The game reached the main menu (or the run ended first): errors from now on are the run's.
