@@ -6,6 +6,8 @@
 
 ### Added
 
+- Added Timberborn modding guidance under `Steam/timberborn`: a read route for starting code and data mods, a `manifest.json` template, and game facts checked against game version 1.1.2.8. They cover mod folders, version folders, load order, Harmony and configurator contexts. `AGENTS.md` and `template-routing.md` now point to them. `tools/timberborn-dev-tests/SPEC.md` plans a Timberborn test harness, and the game facts record what a harness spike proved in game.
+
 - RimWorld Dev Tests reports errors naming the mod that were logged while the game loaded. Every summary has a `Startup:` line, `report.json` lists them in `startupModErrors`, and under `FailOnModErrors` they fail the run. Mods no longer need their own startup-log batch.
 - Several mods' RimWorld Dev Tests can run at once, each in its own game, up to `maxGames` in `rimtest.local.json` (default 3). Install leases are now per installed mod, so only checkouts of the same mod take turns. A run waits for a free game slot instead of failing, and the `perf` batch and recorded runs wait until no other game is running a batch. A run's summary says how many other test games were running.
 

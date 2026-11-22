@@ -56,6 +56,14 @@
       "format": "xml",
       "publicFacing": true,
       "appliesWhen": "Explicit template-backed RimWorld metadata request"
+    },
+    {
+      "id": "timberborn-manifest-json",
+      "template": "Steam/timberborn/timberborn-manifest-template.md",
+      "target": "manifest.json",
+      "format": "json",
+      "publicFacing": true,
+      "appliesWhen": "Explicit template-backed Timberborn metadata request"
     }
   ]
 }
