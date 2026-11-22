@@ -10,7 +10,7 @@ Each mod adds a `DevTests/` folder:
 
 1. A developer-only project outside the production solution and package output. Set `DevTestsProductionDll`, then import `TimberbornDevTests.props`. The import adds compile-only game references and a project reference to the runner.
 2. One `HarnessSettings` subclass with the mod's display name, batches and run-all order.
-3. `devtests.json` with the mod's manifest `modId` and an optional `name`.
+3. `devtests.json` with the mod's manifest `modId`, the built DevTests DLL as `devBuild`, and an optional `name`.
 4. A short Python wrapper in the mod, such as `tools/mymod_test.py`, that runs this folder's `tbtest.py` with `--config DevTests/devtests.json` placed before the command.
 
 See [Authoring](docs/authoring.md) for each part and how the DevTests DLL reaches the game. No developer DLL belongs in a release package.
@@ -49,7 +49,7 @@ python tools/mymod_test.py release-check
 
 Or from this folder: `python tbtest.py [--config <mod>/DevTests/devtests.json] <command>`. Without `--config`, `run` disables every installed mod and runs only the built-in batches.
 
-`run <batch>` builds the runner, installs it into `<Documents>/Timberborn/Mods/TimberbornDevTests` with a `request.json`, and disables every installed mod except the one under test and its `RequiredMods`. It then starts a new game, or loads the batch's fixture, and runs that one batch. Afterwards it puts the game's settings key back exactly, removes the runner, and checks that `Saves`, `ExperimentalSaves` and `Maps` were not changed. The built-in batches are `smoke` (a new game runs for a few game hours) and `diagnostic` (the runner checks its own case reporting). Options:
+`run <batch>` builds the runner and installs it with the mod's DevTests DLL (`devBuild` in `devtests.json`) and a `request.json` into its own folder, `<Documents>/Timberborn/Mods/<modId>DevTests`, or `Mods/TimberbornDevTests` without `--config`. The mod's installed folder is not changed. The run disables every installed mod except that folder, the mod under test and its `RequiredMods`. It then starts a new game, or loads the batch's fixture, and runs that one batch. Afterwards it puts the game's settings key back exactly, removes the dev folder, and checks that `Saves`, `ExperimentalSaves`, `Maps` and the settings key were not changed. The built-in batches are `smoke` (a new game runs for a few game hours) and `diagnostic` (the runner checks its own case reporting). Options:
 
 | Option | Default | Effect |
 | --- | --- | --- |
@@ -62,16 +62,16 @@ Or from this folder: `python tbtest.py [--config <mod>/DevTests/devtests.json] <
 
 The other commands start no game:
 
-- `restore` puts back the settings key and removes the runner after a run whose launcher was killed. The next `run` does this first anyway. It refuses while Timberborn is running.
+- `restore` puts back the settings key and removes the dev folder after a run whose launcher was killed. The next `run` does this first anyway. It refuses while Timberborn is running.
 - `latest [--batch <id>]` prints the newest run's summary, or says the newest run has no report because its game was killed, crashed or never started the runner.
 - `timings [run]` prints each batch's wall clock in a run, slowest first, for the latest run by default.
-- `list` prints the batches and run-all order the game reported in the mod's newest run. It has nothing to show until a run reaches the main menu.
+- `list` prints the batches and run-all order the game reported in the mod's newest run, and notes when that run used a different DevTests build. It has nothing to show until a run reaches the main menu.
 - `release-check [mod_dir]` checks a package, by default the installed copy of `--config`'s mod.
 - `prune [--keep <n>]` deletes all but the newest `n` run folders (20 by default). Nothing else deletes runs.
 
-Exit codes: 0 pass, 1 failures or isolation breach, 2 timeout, crash, failed startup or no report, 3 refusal, 4 launcher error.
+Exit codes: 0 pass, 1 failures or isolation breach, 2 timeout, crash, failed startup or no report, 3 refusal (including a run the game refused because the isolation didn't reach it), 4 launcher error.
 
-The launcher refuses to start while any Timberborn is running, including one you opened, because Steam runs one game at a time. It also refuses when Steam is closed or when the mod or a dependency isn't installed.
+The launcher refuses to start while any Timberborn is running, including one you opened, because Steam runs one game at a time. It checks again after building the runner, and afterwards it closes only the game it launched. It also refuses when Steam is closed, when the mod or a dependency isn't installed, when `devBuild` hasn't been built, or when the installed mod folder holds a DevTests DLL.
 
 ## Runs and evidence
 
@@ -83,7 +83,7 @@ The game seeds no randomness, so cases check ranges, not exact values.
 
 ## Release check
 
-`release-check` fails when the package holds a DevTests DLL, a DLL that references the runner, a `request.json` or the runner's manifest. It also fails unless every `perf.*` case the mod defines has passed against the production DLL in that package, and warns when the mod defines none. Timberborn has no Dubs Performance Analyzer, so there is no shared perf batch.
+`release-check` fails when the package holds a DevTests DLL, a DLL that references the runner, a `request.json` or the runner's manifest. It also fails unless every `perf.*` case in the current DevTests build has passed against the production DLLs in that package, and warns when the build defines none. It reads the case list from a run of that build, so it needs `--config` (the mod's wrapper passes it). Timberborn has no Dubs Performance Analyzer, so there is no shared perf batch.
 
 ## Tooling tests
 

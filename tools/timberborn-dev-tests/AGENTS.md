@@ -13,8 +13,8 @@ The agent can build, write cases and run `latest`, `timings`, `list`, `prune` an
 Runs are in `work/runs/<run id>/` in this folder. Read in this order and stop once the cause is clear:
 
 1. `summary.txt`: verdict, one line per case, steps of every case that didn't pass, the `Startup:` line, problems.
-2. `report.json`: `status`, `cases[]` (Observed, Evidence, Steps, LoggedErrors), `batches[]`, `startupModErrors`, `isolationProbe`.
-3. `launcher.json`: the request, `modsSelected`/`modsDisabled`, `problems`, `protectedChanges`, `exitCode`.
+2. `report.json`: `status`, `cases[]` (Observed, Evidence, Steps, LoggedErrors), `batches[]`, `startupModErrors`, `isolationProbe`, `environment.assemblies` (runner, DevTests and mod assemblies as loaded).
+3. `launcher.json`: the request, `modsSelected`/`modsDisabled`, `devFolder`, `modBuild`/`runnerHash`/`devBuildHash`/`requestHash`, `problems`, `protectedChanges` (files and PlayerPrefs values the run left changed), `exitCode`.
 4. `Player.log`, then `events.jsonl` (timeline) and `batches.json` (what the game offered).
 
 A run with no `report.json` was killed, crashed before the runner started, or timed out; `latest` says so and `launcher.json` has the problem.
@@ -34,9 +34,10 @@ For other subjects use `rg -n -i '<symptom or type>' docs Harness`. The design a
 
 The names and report shape follow [RimWorld Dev Tests](../rimworld-dev-tests/AGENTS.md), but only what a first mod needs is built. Don't assume these exist:
 
-- No `guide` command, `close-session`, `install-dev`/`remove-dev`, `self-check`, `status`, `lease` or recording. Each `run` starts and closes its own game.
+- No `guide` command, `close-session`, `self-check`, `status`, `lease` or recording. Each `run` starts and closes its own game.
 - `run` takes one batch. There is no `run-all` batch: `RunAll` only orders the list in `batches.json` and `list`.
 - No `--seed`, `--case`, `--mods`, `--language` or `--quit-on-finish`. The game has no seed to set.
 - No mod sets: the set is always the mod plus its transitive `RequiredMods`.
 - No `Remember`/`Recall`, `Wait.Reload`, `Wait.Seconds`, `SkipUnlessPassed`, `Kit.Require`, `AllowedErrors`, `AllowedWarnings` or `FailOnWarnings`.
 - `--config` goes before the command: `tbtest.py --config <file> run <batch>`.
+- No `install-dev`: each `run` installs the runner and the `devBuild` DLL into `Mods/<modId>DevTests` and removes it afterwards. Never copy a DevTests DLL into the mod's installed folder; the launcher refuses a run while one is there.

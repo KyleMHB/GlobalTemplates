@@ -10,15 +10,15 @@ Read the mod's `AGENTS.md` and `TESTING.md`. Find `DevTests/*.csproj`, its `Harn
 
 A mod adds a `DevTests/` folder with four parts.
 
-**`devtests.json`.** `modId` is required: the `Id` in the mod's `manifest.json`. `name` is optional and defaults to `modId`; it names the mod in summaries, marks its errors when the settings class sets no `ErrorMarker`, and is what `list` matches runs by, so keep it stable.
+**`devtests.json`.** `modId` is required: the `Id` in the mod's `manifest.json`. `list` and `release-check` find the mod's runs by it. `name` is optional and defaults to `modId`; it names the mod in summaries and marks its errors when the settings class sets no `ErrorMarker`. `devBuild` is the built DevTests DLL, relative to the mod root. Without it a run installs only the runner, which is enough for `smoke` with the mod loaded but not for the mod's own batches or the release check's perf rule.
 
 ```json
-{ "name": "My Mod", "modId": "Author.MyMod" }
+{ "name": "My Mod", "modId": "Author.MyMod", "devBuild": "DevTests/bin/DevTests/MyMod.DevTests.dll" }
 ```
 
 The launcher keeps that mod and its transitive `RequiredMods` enabled and disables every other installed mod for the run. `OptionalMods` stay out. Ids match exactly. When a Local and a Workshop copy share an Id, the Local copy is used and the other is disabled. A missing mod or dependency is refused (exit 3) before anything changes.
 
-**A developer-only csproj.** Keep it out of the production solution and package output. Name the assembly with `DevTests` in it, so `release-check` catches a stray copy. Set `DevTestsProductionDll` to the production DLL, then import the shared props, which add the game references (compile-only) and a project reference to the runner:
+**A developer-only csproj.** Keep it out of the production solution and package output. Name the assembly with `DevTests` in it, so `release-check` catches a stray copy. Set `DevTestsProductionDll` to the production DLL, then import the shared props, which add the game references and a project reference to the runner, all compile-only, so the output holds only the DevTests DLL:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -56,7 +56,9 @@ if __name__ == "__main__":
 
 ### Getting the DevTests DLL into the game
 
-The launcher installs only the runner, into `Mods/TimberbornDevTests`, and replaces that folder on every run. It does not install the mod's DevTests DLL yet, and a separate `Mods/<Mod>DevTests` folder would be disabled by isolation. For now, copy only `MyMod.DevTests.dll` into the mod's own Local folder under `<Documents>/Timberborn/Mods/<folder>`. Never copy the `TimberbornDevTests.dll` that the build puts beside it: the launcher supplies the runner. Remove the DevTests DLL before playing normally or packaging, because `release-check` fails a package that holds it.
+Build the DevTests project, then `run`. For each run the launcher creates a dev folder, `<Documents>/Timberborn/Mods/<modId>DevTests` (the `modId` without spaces), holding the runner it just built, the `devBuild` DLL and the run's `request.json`. Isolation keeps that folder enabled with its starter first, and the launcher removes it afterwards. The mod's installed folder is loaded as it is and never changed, so install the production build there as players get it.
+
+The launcher refuses a run when `devBuild` is set but missing, when the installed mod folder holds a DevTests DLL or a DLL that references the runner (copied there by hand, it would load twice), or when the dev folder name is taken by another mod. A run without `--config` uses `Mods/TimberbornDevTests`.
 
 ## Settings
 
@@ -145,13 +147,13 @@ All of these record what they changed in the batch's setup.
 | `Kit.SaveFixture(ctx, name)` | Saves to `<run>/saves/<settlement>/<name>.timber`; yield the wait. | Pending |
 | `Kit.NewGame`, `Kit.LoadFixture`, `Kit.FixturePath` | Used by the runner at the main menu. | `NewGame` in `smoke` |
 
-The built-in `diagnostic` batch exercises Place, Until, SkipTo and the steps model; see `Harness/BuiltinBatches.cs`. Add a helper only when a mod's cases need it.
+The built-in `diagnostic` batch has four cases: an intended pass, fail, known gap and `PerfTiming` timing, which exercise Place, Until, SkipTo, the steps model and `PerfTiming`. Its summary should read `diagnostic: 4 of 4 reported as intended`; see `Harness/BuiltinBatches.cs`. Add a helper only when a mod's cases need it.
 
 ## Fixtures
 
 A batch with `Fixture` loads a save instead of starting a new game. The runner copies it into `<run>/fixtures/<settlement>/` and loads the copy, so the original is never the live save. Autosave is suspended, and every save goes to the run folder.
 
-An absolute path works. A bare name (with or without `.timber`) is looked up in the request's fixture folder, then the run folder, but the launcher doesn't send a fixture folder yet, so a name in the mod's `DevTests/Fixtures` is not found. Use an absolute path until it does. Loading and saving fixtures has not run in game.
+An absolute path works. A bare name (with or without `.timber`) is looked up in the mod's `DevTests/Fixtures`, then the run folder. Loading and saving fixtures has not run in game.
 
 ## Errors
 
@@ -166,7 +168,9 @@ The `Startup:` line and the crash path are built and unit-tested; their in-game 
 
 `release-check [mod_dir]` checks the package a release would ship: by default the installed copy of `--config`'s mod that a run would load. It fails on a DLL whose name contains `devtests`, a DLL that references `TimberbornDevTests`, any `request.json`, or a manifest with the runner's Id.
 
-Per SPEC D8 it also requires the mod's `perf.*` cases: each case whose Id starts with `perf.`, timed with `PerfTiming`, must have passed against the production DLL in that package. It fails when one hasn't, and warns when the mod defines none. There is no Dubs batch: Timberborn has no Dubs Performance Analyzer.
+Per SPEC D8 it also requires the mod's `perf.*` cases. The case list comes from a run of the current `devBuild` (launcher.json `devBuildHash`), so pass `--config`; a case added since the last run fails until it runs. Each case whose Id starts with `perf.` in a non-diagnostic batch must have passed in its newest run, and that run's `modBuild` (the hashes of the production DLLs the game loaded) must match the package. The check fails when either doesn't hold, and warns when the mod defines no `perf.*` case.
+
+Time a costly path with `PerfTiming.MsPerCall(call, calls)` (median ms per call over rounds, after a warm-up) and record it with `PerfTiming.Report(c, ms, callsPerRound, scale, situation)`. RimWorld's `PatchCost` is not ported, because the game ships no Harmony. There is no Dubs batch either: Timberborn has no Dubs Performance Analyzer.
 
 ## Run and report
 
