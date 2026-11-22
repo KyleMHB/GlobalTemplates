@@ -154,6 +154,10 @@ public static class RunReport
         if (written) return;
         try { BeforeFinish?.Invoke(reason ?? status); }
         catch (Exception ex) { Runner.Log("Closing the open batch failed: " + ex.Message); }
+        // A batch whose game never became ready (a load crash, the deadline) has no runner to close it.
+        foreach (var batch in Batches.Where(b => b.Status == "running").ToList())
+            if (TimberbornDevTests.Batches.All.TryGetValue(batch.Id, out var planned))
+                CloseBatch(batch, planned.Plan, planned.Diagnostic, "the game never became ready: " + (reason ?? status));
         written = true;
         var request = Runner.Request;
         Data["status"] = status;
