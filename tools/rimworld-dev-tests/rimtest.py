@@ -13,7 +13,8 @@ then, or until the lease sits unused for 30 minutes with that mod's game closed.
 Parallel games: several mods' tests run at once, each in its own game. A per-user registry (%LOCALAPPDATA%/RimWorldDevTests/
 games.json) records every game a launcher started; up to maxGames (rimtest.local.json, default 3) run at once, and a run waits
 for a free slot until its --timeout. Idle sessions keep their slot until close-session. Two games never load each other's mod,
-since both harness DLLs would load in one process. The perf batch and recorded runs wait until no other game is running a batch,
+since both harness DLLs would load in one process. Games load one at a time: a launch waits until any other test game
+reaches the main menu, since every game writes the shared Player.log and reads mod folders while loading. The perf batch and recorded runs wait until no other game is running a batch,
 and other runs wait while one of those runs. `status` shows this mod's lease and game and every other test game.
 
 `run` reuses an idle launcher-owned RimWorld session at the main menu, or launches one, and sends the batch to it. The game
@@ -803,6 +804,8 @@ def _run_claimed(config, batch, seed, timeout, startup_timeout, graceful, manife
     timed_out, report, ready, failure = False, None, False, None
     try:
         wait_session(config, process, token, deadline, startup_limit=0 if reuse else startup_timeout)
+        if not reuse:
+            mark_loaded(config)
         print(f"Run {run_id}: evidence {run_dir}", flush=True)
         send_session_request(config, token, "run", RunId=run_id, Batch=batch, Seed=seed, DeadlineUtcMs=game_deadline(deadline, graceful),
                              Cases=config.cases, ConcurrentGames=concurrent)
@@ -900,6 +903,10 @@ DEFAULT_MAX_GAMES = 3
 # Runs that time things or capture the window: other games' load skews them, so they wait until no other game is busy.
 EXCLUSIVE_SETS = ("perf",)
 RESERVATION_SECONDS = 120  # a slot reserved for a launch that never registered is freed after this
+# Games load one at a time. Every game writes the shared Player.log (renaming the last one to Player-prev.log) and reads the mod
+# folders while it loads, so two startups at once could race for a locked file. A game still loading after this stops holding
+# the others back.
+STARTUP_HOLD_SECONDS = 600
 
 
 def max_games():
@@ -979,7 +986,9 @@ def live(entry):
     elif time.time() - entry.get("reserved", 0) > RESERVATION_SECONDS or process_created(entry.get("launcher")) != entry.get("launcherCreated"):
         return None
     if entry.get("busy") and process_created(entry["busy"]) != entry.get("busyCreated"):
-        entry.update(busy=None, busyCreated=None, exclusive=False)
+        entry.update(busy=None, busyCreated=None, exclusive=False, loading=None)
+    if entry.get("loading") and time.time() - entry["loading"] > STARTUP_HOLD_SECONDS:
+        entry["loading"] = None
     return entry
 
 
@@ -1030,7 +1039,8 @@ def own_game_open(config):
 
 
 def describe_game(entry):
-    state = "busy" + (", exclusive" if entry.get("exclusive") else "") if entry.get("busy") else "idle" if entry.get("pid") else "starting"
+    state = ("loading" if entry.get("loading") else "busy" + (", exclusive" if entry.get("exclusive") else "") if entry.get("busy")
+             else "idle" if entry.get("pid") else "starting")
     return f"{entry['mod']} ({state}, {entry['checkout']})"
 
 
@@ -1040,6 +1050,9 @@ def blockers(config, entries, mods, exclusive, launching):
     if launching and len(others) >= max_games():
         found.append(f"all {max_games()} test game slots are in use (maxGames in rimtest.local.json): "
                      + "; ".join(describe_game(e) for e in others) + ". Idle sessions keep their slot until their checkout runs close-session")
+    if launching:
+        found += [f"{describe_game(e)} is still loading; test games start one at a time so their startups don't race for shared files"
+                  for e in others if e.get("loading") or not e.get("pid")]
     package = config.package_id.lower()
     for e in others:
         if package and package in [m.lower() for m in e.get("mods", [])] or e.get("packageId", "").lower() in [m.lower() for m in mods]:
@@ -1070,7 +1083,7 @@ def claim_game(config, mods, exclusive, launching, deadline):
                 entry = own_entry(config, entries)
                 if entry is None or launching:
                     entries = [e for e in entries if e is not entry]
-                    entry = {"pid": None, "created": None, "reserved": time.time(), "launcher": me, "launcherCreated": my_created,
+                    entry = {"pid": None, "created": None, "reserved": time.time(), "loading": time.time(), "launcher": me, "launcherCreated": my_created,
                              "mod": config.name, "checkout": str(config.root.resolve()), "userdata": str(config.userdata),
                              "packageId": config.package_id}
                     entries.append(entry)
@@ -1096,6 +1109,24 @@ def register_launch(config, pid):
         write_registry(entries)
 
 
+def mark_loaded(config):
+    """The game reached the main menu with the runner ready, so the next game may start loading."""
+    with registry_lock():
+        entries = read_registry()
+        entry = own_entry(config, entries)
+        if entry and entry.get("loading"):
+            entry["loading"] = None
+            write_registry(entries)
+
+
+def games_loading_mod(config):
+    """Other test games that load this mod and are still loading: they read its files, so a deploy waits for them."""
+    package = config.package_id.lower()
+    with registry_lock():
+        return [e for e in read_registry() if not same_path(e["userdata"], config.userdata) and e.get("loading")
+                and package in [m.lower() for m in e.get("mods", [])]]
+
+
 def release_game(config):
     """End this command's use of its game: an open session stays registered as idle; a reservation or exited game is dropped."""
     with registry_lock():
@@ -1104,7 +1135,7 @@ def release_game(config):
         if entry and not entry.get("pid"):
             entries.remove(entry)
         elif entry:
-            entry.update(busy=None, busyCreated=None, exclusive=False)
+            entry.update(busy=None, busyCreated=None, exclusive=False, loading=None)
         write_registry(entries)
 
 
@@ -1180,6 +1211,16 @@ def lease_command(config, action, purpose):
         return 0
     try:
         take_lease(config, purpose)
+        # A deploy script takes the lease before copying files: wait until no other test game is loading this mod's files.
+        deadline, shown = time.monotonic() + STARTUP_HOLD_SECONDS, None
+        while loading := games_loading_mod(config):
+            if time.monotonic() >= deadline:
+                raise RuntimeError("these test games are still loading this mod: " + "; ".join(describe_game(e) for e in loading))
+            names = "; ".join(describe_game(e) for e in loading)
+            if names != shown:
+                print(f"Waiting: {names} loads this mod and is still starting; deploying now could race its file reads.", flush=True)
+                shown = names
+            time.sleep(2)
     except RuntimeError as error:
         print("REFUSED:", error)
         return 3
@@ -1280,7 +1321,7 @@ def _run_once_claimed(config, batch, seed, timeout, keep_open, record, ffmpeg, s
     run_dir = config.last_run_dir = config.evidence_root / run_id
     recording = Recording(ffmpeg, run_dir, timeout, hide_ui=not show_ui) if record else None
     print(f"Run {run_id}: evidence {run_dir}", flush=True)
-    timed_out, failure = False, None
+    timed_out, failure, loaded = False, None, False
     try:
         deadline = time.monotonic() + timeout
         startup_deadline = time.monotonic() + startup_timeout
@@ -1298,6 +1339,9 @@ def _run_once_claimed(config, batch, seed, timeout, keep_open, record, ffmpeg, s
             try:
                 check_startup(config)
                 # The run folder appears when the game accepts or refuses the request.
+                if run_dir.is_dir() and not loaded:
+                    loaded = True
+                    mark_loaded(config)
                 if not run_dir.is_dir() and time.monotonic() >= startup_deadline:
                     failure = f"the game did not start the run within {startup_timeout} s. " + startup_hint(config)
             except StartupFailure as error:

@@ -2,6 +2,12 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
+## 2026-11-23
+
+### Changed
+
+- RimWorld Dev Tests games now load one at a time: a launch waits until any other test game reaches the main menu, so two startups can't race for the shared `Player.log` or a mod's files. Batches still run in parallel. `lease take`, which deploy scripts call, also waits while another test game is loading that mod.
+
 ## 2026-11-22
 
 ### Added
