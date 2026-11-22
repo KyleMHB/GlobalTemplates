@@ -10,7 +10,7 @@ Search headings with `rg -n '^##|^###' Steam/rimworld/rimworld-art-guide.md` fro
 | --- | --- |
 | New object or localized correction | [Define the object](#1-define-the-object-before-generating-it), [approve a master](#2-approve-one-master-design) |
 | Layers, mixed materials, repeat failures | [Route choice](#choose-ownership-polygons-or-separate-layers), [evidence limits](#evidence-still-needed) |
-| Rotations change shape or feature count | [Directional views](#3-derive-the-other-views-from-that-design) |
+| First rotation, change of material across views, or inconsistent perspective | [Directional views](#3-derive-the-other-views-from-that-design) |
 | Framing, resize, anchor or export | [Export](#4-export-color-and-material-regions-together), [numeric framing](#numeric-framing-for-separate-generation), [texture constraints](#engine-texture-constraints) |
 | Paint a mask or review gallery artwork | [Mask editor](mask-editor-guide.md) |
 | Tint fringe, mask anatomy or darkened fixed colors | [Material-mask encoding](#material-mask-encoding), [renderer diagnosis](#diagnose-the-layer-before-regenerating-artwork) |
@@ -125,7 +125,11 @@ Mechanical success, visual acceptance and runtime behavior are separate. One suc
 
 ### 3. Derive the other views from that design
 
-Treat directions as views of one physical object. Reuse parts, proportions and palette; repaint facing depth for the fixed camera instead of rotating a shaded painting.
+Start with the direction that exposes the most new geometry. If the intended object already exists in that direction, attach its same-facing sprite first as the edit target. A second view can supply the approved material or motif. For a material change, keep the target's silhouette, visible face depths and overlaps.
+
+For a new shape, mark the parts on its occupied cells and sketch the required view against a same-role camera reference. Show the top, the near face and what hides behind it. For repeated parts such as four clamps, place copies of one block around the base and turn the assembly under a fixed camera and light. Use the resulting view as the layout. If the same error survives two attempts, keep the constructed geometry and edit the affected surface or component.
+
+Before deriving the remaining views, compare this candidate with its same-facing layout or reference at the same pixels per cell. For a bed, check the head end, the depth of the near slab edge, and which crystals disappear behind the headboard. The occupied cells, padded texture canvas and visible silhouette each describe a different measurement. For layered equipment or furniture, check the assembled view at its drawing offsets so gaps and unintended overlaps show up.
 
 Vanilla directional graphics ship north, east and south only, which indicates west is produced by mirroring east. Verify the consuming graphic class's west handling in the installed source before relying on it. When west is mirrored, the east view must read correctly when flipped: no text or logos, no handed details that must stay on one side, and lighting that remains plausible mirrored. Compare feature counts including occluded parts, spacing, visible faces, contour/facet weight and head/foot or wall-facing orientation. Inspect each sheet cell individually. Completion means every required direction meets the same contract without introducing another design.
 
@@ -290,9 +294,15 @@ Inspect comparable vanilla definitions, inherited drawing modes/layers, footprin
 
 Supply real references and fill only relevant fields:
 
-> RimWorld object sprite matching reference A's camera, contour weight, broad shading and detail density at game zoom. Heavy unbroken black contour and a few large shapes. [Shading and colour as the house-style reference shows them.] Reference B controls [shape]; C controls [palette]. Draw [object and exact parts/counts]. Preserve [silhouette, proportions, spacing, material joins]. Change only [regions/properties]. Use [material colors] and broad readable planes with smooth antialiasing. Dark borders on exterior/inter-material seams; same-material form through shading. [Direction] view of the same approved object[; east view must read correctly when mirrored for west, so no text or one-sided details]. Genuine transparency, complete object, [canvas/framing].
+> Draw [object and direction] using A for [edit target or layout]. Keep [silhouette, parts, positions, visible faces and overlaps]. Change [named surface or component]. B supplies [material, palette or rendering trait]. At game size, [identifying feature] should read first. Leave [surface] quiet. Use [reference contour weight and broad shading], with dark borders at material joins and value changes within a material. Show the complete object on a transparent [canvas and framing].
 
-For local edits specify protected regions and newly exposed surfaces. Describe geometry instead of repeatedly requesting more detail. Preserve accepted prompts and selected sources in the mod's artwork record.
+For a directional edit, use the [target-view procedure](#3-derive-the-other-views-from-that-design) and give each attachment a single job. This example changes a bed's material.
+
+> Edit A, the east-facing stone bed. Keep the head crystals on the left, the thickness of the near slab edge and the gold band where it wraps around the side. B supplies the pale rose crystal material. Give the sleeping surface two broad, low-contrast planes. Keep the middle quiet so the raised head reads at map size.
+
+Choose a rendering reference for the trait it demonstrates. When the author's examples are available in `local-art-references/` beside this guide, pick the sheet for that role. Gene icons show how a symbol and modifier read together at menu size. A creature or mech turnaround shows which landmarks survive each view. Equipment shown on a pawn demonstrates overlap. An item icon may show legible faces from an angle that would give furniture the wrong camera. In the prompt, name the feature a player should notice first and the surface that can stay quiet. Preserve accepted prompts and selected sources in the mod's artwork record.
+
+For examples of simplifying silhouettes and detail, see Oskar Potocki’s [Drawing RimWorld art – Animals!](https://www.youtube.com/watch?v=-8ciZv_sx74) and [Melee weapons!](https://www.youtube.com/watch?v=Ncyy-FYxHn4).
 
 ## Acceptance record
 
