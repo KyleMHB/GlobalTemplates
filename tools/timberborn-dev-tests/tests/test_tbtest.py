@@ -78,6 +78,8 @@ class ModDiscoveryTest(TempCase):
         self.manifest("workshop/111/manifest.json", "Harmony")
         self.manifest("Mods/Local/manifest.json", "My.Local")
         self.manifest(f"Mods/{tbtest.RUNNER_FOLDER}/manifest.json", tbtest.RUNNER_ID)
+        # A mod's dev folder carries the runner's Id whatever its name, and isolation must never disable it.
+        self.manifest("Mods/My.LocalDevTests/manifest.json", tbtest.RUNNER_ID)
         self.write("Mods/NotAMod/readme.txt")
         found = tbtest.installed_mods(self.root / "workshop", self.root / "Mods", (1, 1, 2, 8))
         self.assertEqual(found, [tbtest.InstalledMod("Steam Workshop", "111", "Harmony"), tbtest.InstalledMod("Local", "Local", "My.Local")])
@@ -130,11 +132,17 @@ class IsolationPlanTest(unittest.TestCase):
     def test_runner_priority_puts_its_starter_before_every_mod(self):
         # ModSorter orders by OriginalIndex - ModPriority, so only a priority above any index guarantees the runner's starter
         # runs first and sees the mod's startup errors.
-        values = tbtest.runner_priority()
-        self.assertEqual(list(values), [tbtest.unity_pref_name("ModPriority.Local.TimberbornDevTests.TimberbornDevTests")])
-        kind, priority = values[tbtest.unity_pref_name("ModPriority.Local.TimberbornDevTests.TimberbornDevTests")]
-        self.assertEqual(kind, 4)
-        self.assertGreater(priority, 10000)
+        values = tbtest.dev_folder_keys(tbtest.RUNNER_FOLDER)
+        self.assertEqual(values["ModEnabled.Local.TimberbornDevTests.TimberbornDevTests"], 1)
+        self.assertGreater(values["ModPriority.Local.TimberbornDevTests.TimberbornDevTests"], 10000)
+
+    def test_the_dev_folder_is_named_after_the_mod_and_kept_enabled_first(self):
+        folder = tbtest.dev_folder_name("Author.My Mod")
+        self.assertEqual(folder, "Author.MyModDevTests")
+        self.assertEqual(tbtest.dev_folder_name(None), tbtest.RUNNER_FOLDER)
+        self.assertEqual(tbtest.dev_folder_keys(folder),
+                         {"ModEnabled.Local.Author.MyModDevTests.TimberbornDevTests": 1,
+                          "ModPriority.Local.Author.MyModDevTests.TimberbornDevTests": tbtest.RUNNER_PRIORITY})
 
     def test_restore_plan_returns_the_key_to_the_snapshot_exactly(self):
         snapshot = {"kept": [4, 1], "changed": [4, 1], "deleted": [3, {"b64": "AA=="}]}
@@ -149,6 +157,30 @@ class ConfigTest(TempCase):
         path = self.write("MyMod/DevTests/devtests.json", json.dumps({"name": "My Mod", "modId": "My.Mod"}))
         config = tbtest.load_config(path)
         self.assertEqual((config.name, config.mod_id, config.root), ("My Mod", "My.Mod", (self.root / "MyMod").resolve()))
+        self.assertIsNone(config.dev_build)
+
+    def test_dev_build_is_relative_to_the_mod_root(self):
+        path = self.write("MyMod/DevTests/devtests.json", json.dumps({"modId": "My.Mod", "devBuild": "DevTests/bin/MyMod.DevTests.dll"}))
+        self.assertEqual(tbtest.load_config(path).dev_build, (self.root / "MyMod/DevTests/bin/MyMod.DevTests.dll").resolve())
+
+    def test_preflight_refuses_a_missing_dev_build_a_dev_dll_in_the_production_folder_and_a_foreign_dev_folder(self):
+        path = self.write("MyMod/DevTests/devtests.json", json.dumps({"modId": "My.Mod", "devBuild": "bin/MyMod.DevTests.dll"}))
+        config = tbtest.load_config(path)
+        self.write("Mods/MyMod/MyMod.DevTests.dll")
+        self.manifest("Mods/My.ModDevTests/manifest.json", "Someone.Else")
+        problems = tbtest.dev_problems(config, self.root / "Mods/MyMod", self.root / "Mods/My.ModDevTests")
+        self.assertEqual(len(problems), 3)
+        self.assertIn("build DevTests first", problems[0])
+        self.assertIn("MyMod.DevTests.dll", problems[1])
+        self.assertIn("My.ModDevTests", problems[2])
+
+    def test_preflight_passes_a_built_dev_dll_and_a_clean_production_folder(self):
+        path = self.write("MyMod/DevTests/devtests.json", json.dumps({"modId": "My.Mod", "devBuild": "bin/MyMod.DevTests.dll"}))
+        self.write("MyMod/bin/MyMod.DevTests.dll")
+        self.write("Mods/MyMod/MyMod.dll", "production")
+        self.manifest("Mods/My.ModDevTests/manifest.json", tbtest.RUNNER_ID)
+        config = tbtest.load_config(path)
+        self.assertEqual(tbtest.dev_problems(config, self.root / "Mods/MyMod", self.root / "Mods/My.ModDevTests"), [])
 
     def test_devtests_json_without_mod_id_is_refused(self):
         path = self.write("MyMod/DevTests/devtests.json", json.dumps({"name": "My Mod"}))
@@ -167,14 +199,26 @@ class FakePrefs:
 
 class RecoveryTest(TempCase):
     def test_state_left_by_a_killed_run_is_restored_and_cleared(self):
+        # A state file from before dev folders were recorded means the runner folder.
         state = self.write("work/state.json", json.dumps({"runId": "run-1", "prefs": {"a": [4, 1]}}))
-        self.write(f"Mods/{tbtest.RUNNER_FOLDER}/request.json")
+        self.manifest(f"Mods/{tbtest.RUNNER_FOLDER}/manifest.json", tbtest.RUNNER_ID)
         prefs = FakePrefs()
         message = tbtest.recover(state, self.root / "Mods", prefs)
         self.assertEqual(prefs.restored, [{"a": [4, 1]}])
         self.assertFalse(state.exists())
         self.assertFalse((self.root / "Mods" / tbtest.RUNNER_FOLDER).exists())
         self.assertIn("run-1", message)
+
+    def test_the_dev_folder_the_run_recorded_is_removed(self):
+        state = self.write("work/state.json", json.dumps({"runId": "run-1", "prefs": {}, "devFolder": "My.ModDevTests"}))
+        self.manifest("Mods/My.ModDevTests/manifest.json", tbtest.RUNNER_ID)
+        self.write("Mods/My.ModDevTests/MyMod.DevTests.dll")
+        tbtest.recover(state, self.root / "Mods", FakePrefs())
+        self.assertFalse((self.root / "Mods/My.ModDevTests").exists())
+
+    def test_prefs_left_changed_names_each_value_the_restore_missed(self):
+        self.assertEqual(tbtest.prefs_left_changed({"a": [4, 1], "b": [4, 0]}, {"a": [4, 1], "b": [4, 1], "c": [4, 0]}), ["b", "c"])
+        self.assertEqual(tbtest.prefs_left_changed({"a": [4, 1]}, {"a": [4, 1]}), [])
 
     def test_nothing_left_behind_means_nothing_to_restore(self):
         prefs = FakePrefs()
@@ -209,12 +253,36 @@ class RequestAndLaunchTest(TempCase):
 
     def test_install_writes_only_the_runner_manifest_and_request(self):
         dll = self.write("build/TimberbornDevTests.dll")
+        self.manifest(f"Mods/{tbtest.RUNNER_FOLDER}/manifest.json", tbtest.RUNNER_ID)
         self.write(f"Mods/{tbtest.RUNNER_FOLDER}/stale.dll")
         folder = tbtest.install_runner([dll], self.root / "Mods", {"RunId": "r"})
         self.assertEqual(sorted(p.name for p in folder.iterdir()), ["TimberbornDevTests.dll", "manifest.json", "request.json"])
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["Id"], tbtest.RUNNER_ID)
         self.assertEqual(json.loads((folder / "request.json").read_text(encoding="utf-8")), {"RunId": "r"})
+
+    def test_install_puts_the_runner_and_the_dev_dll_in_the_mods_dev_folder_and_leaves_the_mod_alone(self):
+        runner = self.write("build/TimberbornDevTests.dll")
+        dev = self.write("MyMod/DevTests/bin/MyMod.DevTests.dll")
+        self.write("MyMod/DevTests/bin/TimberbornDevTests.dll", "an old copy beside the dev build")
+        production = self.write("Mods/MyMod/MyMod.dll", "production")
+        folder = tbtest.install_runner([runner, dev], self.root / "Mods", {"RunId": "r"}, folder="My.ModDevTests")
+        self.assertEqual(folder, self.root / "Mods/My.ModDevTests")
+        self.assertEqual(sorted(p.name for p in folder.iterdir()),
+                         ["MyMod.DevTests.dll", "TimberbornDevTests.dll", "manifest.json", "request.json"])
+        self.assertEqual((folder / "TimberbornDevTests.dll").read_text(encoding="utf-8"), "x")
+        self.assertEqual(sorted(p.name for p in production.parent.iterdir()), ["MyMod.dll"])
+
+    def test_install_never_replaces_a_folder_that_is_not_the_runners(self):
+        self.manifest("Mods/My.ModDevTests/manifest.json", "Someone.Else")
+        with self.assertRaisesRegex(RuntimeError, "not a runner folder"):
+            tbtest.install_runner([self.write("build/TimberbornDevTests.dll")], self.root / "Mods", {}, folder="My.ModDevTests")
+        self.assertTrue((self.root / "Mods/My.ModDevTests/manifest.json").is_file())
+
+    def test_request_points_relative_fixtures_at_the_mods_fixture_folder(self):
+        request = tbtest.build_request("run-1", self.root, "smoke", None, 30, 2, 0, fixture_dir=self.root / "DevTests/Fixtures")
+        self.assertEqual(request["FixtureDir"], str(self.root / "DevTests/Fixtures"))
+        self.assertIsNone(tbtest.build_request("run-1", self.root, "smoke", None, 30, 2, 0)["FixtureDir"])
 
 
 class ReleaseCheckTest(TempCase):
@@ -249,13 +317,17 @@ class PerfRuleTest(TempCase):
         self.write("Package/version-1.1/MyMod.dll", "build 1")
         self.batches = [{"id": "speed", "diagnostic": False, "cases": ["perf.place-many", "speed.correct"]},
                         {"id": "diagnostic", "diagnostic": True, "cases": ["perf.runner-only"]}]
+        self.dev_build = self.write("MyMod/DevTests/bin/MyMod.DevTests.dll", "dev build 1")
+        self.config = tbtest.Config("My Mod", "My.Mod", self.root / "MyMod", self.dev_build)
 
-    def fake_run(self, name, cases, mod_id="My.Mod", dlls=None, batches=None):
-        """A run folder as run() leaves it: launcher.json (mod under test and the measured DLLs), report.json, batches.json."""
+    def fake_run(self, name, cases, mod_id="My.Mod", dlls=None, batches=None, dev_hash=None):
+        """A run folder as run() leaves it: launcher.json (mod under test, the measured DLLs and the DevTests build),
+        report.json, batches.json."""
         import os
         folder = self.root / "runs" / name
         build = tbtest.mod_build(self.package) if dlls is None else dlls
-        files = {"launcher.json": {"runId": name, "modUnderTest": mod_id, "modBuild": build},
+        dev_hash = tbtest.sha256(self.dev_build) if dev_hash is None else dev_hash
+        files = {"launcher.json": {"runId": name, "modUnderTest": mod_id, "modBuild": build, "devBuildHash": dev_hash},
                  "report.json": {"cases": [{"Id": i, "Result": r, "Reason": None if r == "pass" else "too slow"} for i, r in cases]},
                  "batches.json": {"modName": "My Mod", "batches": self.batches if batches is None else batches}}
         for file, data in files.items():
@@ -264,12 +336,39 @@ class PerfRuleTest(TempCase):
         self.stamp += 10
         return folder
 
-    def check(self):
+    def check(self, config="default"):
         import contextlib, io
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = tbtest.release_check(self.package, None, None, evidence_root=self.root / "runs")
+            code = tbtest.release_check(self.package, self.config if config == "default" else config, None,
+                                        evidence_root=self.root / "runs")
         return code, out.getvalue().splitlines()
+
+    def test_a_perf_case_added_since_the_last_run_fails(self):
+        # The newest run's list predates the current DevTests build, which may define perf cases no run has seen.
+        self.fake_run("run-1", [("perf.place-many", "pass")])
+        self.write("MyMod/DevTests/bin/MyMod.DevTests.dll", "dev build 2")
+        code, lines = self.check()
+        self.assertEqual(code, 1)
+        self.assertTrue([l for l in lines if l.startswith("FAIL: no batch list from the current DevTests build of My.Mod")])
+
+    def test_without_config_the_perf_rule_cannot_see_the_devtests_build(self):
+        self.fake_run("run-1", [("perf.place-many", "pass")])
+        code, lines = self.check(config=None)
+        self.assertEqual(code, 1)
+        self.assertTrue([l for l in lines if l.startswith("FAIL: no DevTests build to read My.Mod's perf.* cases from")])
+        self.assertIn(f"PASS: no developer test runner in {self.package}", lines)
+
+    def test_a_not_selected_case_record_is_not_a_measurement(self):
+        self.fake_run("run-1", [("perf.place-many", "pass")])
+        newer = self.fake_run("run-2", [("perf.place-many", "skip")])
+        report = {"cases": [{"Id": "perf.place-many", "Result": "skip", "CoverageReason": "not-selected"}]}
+        (newer / "report.json").write_text(json.dumps(report), encoding="utf-8")
+        import os
+        os.utime(newer / "report.json", (self.stamp, self.stamp))
+        code, lines = self.check()
+        self.assertEqual(code, 0)
+        self.assertIn("PASS: perf perf.place-many in run run-1", lines)
 
     def test_a_passing_perf_case_on_the_packaged_dll_passes(self):
         self.fake_run("run-1", [("perf.place-many", "pass"), ("speed.correct", "pass")])
@@ -323,7 +422,7 @@ class PerfRuleTest(TempCase):
     def test_no_batch_list_fails(self):
         code, lines = self.check()
         self.assertEqual(code, 1)
-        self.assertTrue([l for l in lines if l.startswith("FAIL: no batch list for My.Mod")])
+        self.assertTrue([l for l in lines if l.startswith("FAIL: no batch list from the current DevTests build of My.Mod")])
 
     def test_a_dev_dll_in_the_package_fails_even_with_perf_passing(self):
         self.fake_run("run-1", [("perf.place-many", "pass")])
@@ -334,32 +433,41 @@ class PerfRuleTest(TempCase):
 
 
 class ListTest(TempCase):
-    def batch_list(self, run, mod_name, batches):
+    def batch_list(self, run, mod_id, batches, mod_name="renamed", dev_hash="dev-1"):
+        # Matched by launcher.json's modUnderTest, as release-check does, so a renamed mod keeps its runs.
         self.write(f"runs/{run}/report.json", "{}")
+        self.write(f"runs/{run}/launcher.json", json.dumps({"modUnderTest": mod_id, "devBuildHash": dev_hash}))
         return self.write(f"runs/{run}/batches.json", json.dumps({"modName": mod_name, "runAll": [], "batches": batches}))
 
-    def test_lists_the_newest_batch_list_for_the_mod(self):
+    def listing(self, mod_id, dev_hash="dev-1"):
         import contextlib, io, os
-        old = self.batch_list("run-1", "My Mod", [{"id": "old", "diagnostic": False, "cases": ["a"]}])
-        new = self.batch_list("run-2", "My Mod", [{"id": "smoke", "diagnostic": False, "cases": ["smoke.new-game"]},
-                                                  {"id": "diagnostic", "diagnostic": True, "cases": ["x", "y", "z"]}])
-        other = self.batch_list("run-3", "Other Mod", [{"id": "other", "diagnostic": False, "cases": []}])
-        for i, path in enumerate((old, new, other)):
-            os.utime(path.parent / "report.json", (1000 + i, 1000 + i))
+        for i, folder in enumerate(sorted((self.root / "runs").iterdir()) if (self.root / "runs").is_dir() else []):
+            os.utime(folder / "report.json", (1000 + i, 1000 + i))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = tbtest.list_batches(self.root / "runs", "My Mod")
+            code = tbtest.list_batches(self.root / "runs", mod_id, dev_hash)
+        return code, out.getvalue().splitlines()
+
+    def test_lists_the_newest_batch_list_for_the_mod(self):
+        self.batch_list("run-1", "My.Mod", [{"id": "old", "diagnostic": False, "cases": ["a"]}])
+        self.batch_list("run-2", "My.Mod", [{"id": "smoke", "diagnostic": False, "cases": ["smoke.new-game"]},
+                                            {"id": "diagnostic", "diagnostic": True, "cases": ["x", "y", "z"]}])
+        self.batch_list("run-3", "Other.Mod", [{"id": "other", "diagnostic": False, "cases": []}], mod_name="renamed")
+        code, lines = self.listing("My.Mod")
         self.assertEqual(code, 0)
-        self.assertEqual(out.getvalue().splitlines()[1:], ["smoke: 1 cases", "diagnostic: 3 cases (runner self-check)"])
-        self.assertIn("run-2", out.getvalue().splitlines()[0])
+        self.assertEqual(lines[1:], ["smoke: 1 cases", "diagnostic: 3 cases (runner self-check)"])
+        self.assertIn("run-2", lines[0])
+
+    def test_a_list_from_another_devtests_build_says_so(self):
+        self.batch_list("run-1", "My.Mod", [{"id": "smoke", "diagnostic": False, "cases": ["smoke.new-game"]}])
+        code, lines = self.listing("My.Mod", dev_hash="dev-2")
+        self.assertEqual(code, 0)
+        self.assertIn("Note: this list is from a different DevTests build than the one in the working tree.", lines)
 
     def test_no_list_yet_says_when_one_appears(self):
-        import contextlib, io
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            code = tbtest.list_batches(self.root / "runs", "My Mod")
+        code, lines = self.listing("My.Mod")
         self.assertEqual(code, 1)
-        self.assertIn("No batch list yet", out.getvalue())
+        self.assertIn("No batch list yet", "\n".join(lines))
 
 
 class SummaryTest(TempCase):
