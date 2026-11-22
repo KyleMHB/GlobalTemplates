@@ -5,7 +5,8 @@
     and optionally TimberbornPath or TimberbornManaged. Machine-specific paths go in an untracked
     TimberbornDevTests.local.props next to this file.
     The game loads every *.dll under a mod folder with Assembly.Load(bytes), so every game reference is compile-only
-    (Private=false): only the runner DLL and the mod's DevTests DLL may reach the output.
+    (Private=false). The runner reference is compile-only too: tbtest.py installs the runner it builds itself, beside the
+    mod's DevTests DLL, so only the DevTests DLL reaches a mod's output.
   -->
   <Import Project="$(MSBuildThisFileDirectory)TimberbornDevTests.local.props" Condition="Exists('$(MSBuildThisFileDirectory)TimberbornDevTests.local.props')" />
   <PropertyGroup>
@@ -23,7 +24,7 @@
     <TimberbornDevTestsDir>$(MSBuildThisFileDirectory)</TimberbornDevTestsDir>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="$(TimberbornDevTestsDir)TimberbornDevTests.csproj" Condition="'$(MSBuildProjectName)' != 'TimberbornDevTests'" />
+    <ProjectReference Include="$(TimberbornDevTestsDir)TimberbornDevTests.csproj" Condition="'$(MSBuildProjectName)' != 'TimberbornDevTests'" Private="false" />
     <Reference Include="$(TimberbornManaged)\Timberborn.*.dll" Private="false" />
     <Reference Include="$(TimberbornManaged)\Bindito.Core.dll" Private="false" />
     <Reference Include="$(TimberbornManaged)\Bindito.Unity.dll" Private="false" />
