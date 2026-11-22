@@ -57,6 +57,7 @@ class ResultTest(TempCase):
         run_id = core.new_run_id("Run All!", 3)
         self.assertRegex(run_id, r"^\d{8}-\d{6}-run-all--s3$")
         self.assertTrue(core.new_run_id("smoke", 1, cases=["a.*"]).endswith("-smoke-s1-cases"))
+        self.assertRegex(core.new_run_id("smoke"), r"^\d{8}-\d{6}-smoke$")
 
 
 class LocalConfigTest(TempCase):

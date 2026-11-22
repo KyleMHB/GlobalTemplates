@@ -48,9 +48,11 @@ def local_path(env_name, local_file, key, default):
 
 # ---- Runs, results and deadlines ---------------------------------------------------------------------------------------
 
-def new_run_id(batch, seed, cases=None):
-    """A run filtered by --case says so in its id, so its folder is never mistaken for a full batch run."""
-    return f"{datetime.now():%Y%m%d-%H%M%S}-{re.sub(r'[^a-z0-9-]', '-', batch.lower())}-s{seed}" + ("-cases" if cases else "")
+def new_run_id(batch, seed=None, cases=None):
+    """A run filtered by --case says so in its id, so its folder is never mistaken for a full batch run. A game without a
+    seed (Timberborn never seeds its randomness) leaves the seed out."""
+    seed_part = f"-s{seed}" if seed is not None else ""
+    return f"{datetime.now():%Y%m%d-%H%M%S}-{re.sub(r'[^a-z0-9-]', '-', batch.lower())}{seed_part}" + ("-cases" if cases else "")
 
 
 def game_deadline(deadline, graceful=True):
