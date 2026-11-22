@@ -24,8 +24,11 @@ class TempCase(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
-    def manifest(self, relative, mod_id):
-        return self.write(relative, json.dumps({"Name": mod_id, "Id": mod_id, "Version": "1.0", "MinimumGameVersion": "1.0"}))
+    def manifest(self, relative, mod_id, required=()):
+        data = {"Name": mod_id, "Id": mod_id, "Version": "1.0", "MinimumGameVersion": "1.0"}
+        if required:
+            data["RequiredMods"] = [{"Id": r, "MinimumVersion": "1.0"} for r in required]
+        return self.write(relative, json.dumps(data))
 
 
 class PrefNameTest(unittest.TestCase):
@@ -54,6 +57,23 @@ class ModDiscoveryTest(TempCase):
         self.write("Mod/manifest.json", '{ "Id": "Loose.Mod", "Name": "x", }')
         self.assertEqual(tbtest.manifest_id(self.root / "Mod", (1, 1, 2, 8)), "Loose.Mod")
 
+    def test_required_mods_come_from_the_version_folder_the_game_picks(self):
+        self.manifest("workshop/1/manifest.json", "Stairs", required=["Old.Dep"])
+        self.manifest("workshop/1/VERSION-1.1/manifest.json", "Stairs", required=["Materials"])
+        found = tbtest.installed_mods(self.root / "workshop", self.root / "Mods", (1, 1, 2, 8))
+        self.assertEqual(found[0].required, ("Materials",))
+
+    def test_bare_version_folder_counts_as_the_current_game(self):
+        # ModRepository reads "version-" with no number as the running game version, so it beats version-1.0.
+        self.manifest("Mod/version-1.0/manifest.json", "Old")
+        self.manifest("Mod/version-/manifest.json", "Current")
+        self.assertEqual(tbtest.manifest_id(self.root / "Mod", (1, 1, 2, 8)), "Current")
+
+    def test_trailing_comma_keeps_the_required_mods(self):
+        self.write("workshop/1/manifest.json", '{ "Id": "Loose", "RequiredMods": [ { "Id": "Harmony", }, ], }')
+        found = tbtest.installed_mods(self.root / "workshop", self.root / "Mods", (1, 1, 2, 8))
+        self.assertEqual(found, [tbtest.InstalledMod("Steam Workshop", "1", "Loose", ("Harmony",))])
+
     def test_lists_workshop_and_local_mods_except_the_runner(self):
         self.manifest("workshop/111/manifest.json", "Harmony")
         self.manifest("Mods/Local/manifest.json", "My.Local")
@@ -63,7 +83,45 @@ class ModDiscoveryTest(TempCase):
         self.assertEqual(found, [tbtest.InstalledMod("Steam Workshop", "111", "Harmony"), tbtest.InstalledMod("Local", "Local", "My.Local")])
 
 
+def mod(source, folder, mod_id, *required):
+    return tbtest.InstalledMod(source, folder, mod_id, tuple(required))
+
+
+class ModSetTest(unittest.TestCase):
+    def test_set_is_the_mod_plus_its_transitive_required_mods(self):
+        installed = [mod("Steam Workshop", "1", "Stairs", "Materials"), mod("Steam Workshop", "2", "Materials", "Harmony"),
+                     mod("Steam Workshop", "3", "Harmony"), mod("Steam Workshop", "4", "Other", "Harmony")]
+        selected, problems = tbtest.select_mods("Stairs", installed)
+        self.assertEqual(problems, [])
+        self.assertEqual([m.folder for m in selected], ["1", "2", "3"])
+
+    def test_one_copy_per_id_and_the_local_copy_wins(self):
+        # The game loads a Local and a Workshop copy of the same Id side by side, so only one may stay enabled.
+        workshop, local = mod("Steam Workshop", "9", "My.Mod"), mod("Local", "MyMod", "My.Mod")
+        selected, _ = tbtest.select_mods("My.Mod", [workshop, local])
+        self.assertEqual(selected, [local])
+
+    def test_ids_match_exactly_as_the_game_compares_them(self):
+        selected, problems = tbtest.select_mods("my.mod", [mod("Local", "MyMod", "My.Mod")])
+        self.assertEqual(selected, [])
+        self.assertEqual(problems, ["the mod under test (my.mod) is not installed in Mods or the Workshop"])
+
+    def test_missing_dependency_names_who_requires_it(self):
+        _, problems = tbtest.select_mods("Stairs", [mod("Local", "Stairs", "Stairs", "Materials")])
+        self.assertEqual(problems, ["Stairs requires Materials, which is not installed"])
+
+    def test_dependency_cycle_ends(self):
+        installed = [mod("Local", "A", "A", "B"), mod("Local", "B", "B", "A")]
+        selected, problems = tbtest.select_mods("A", installed)
+        self.assertEqual(([m.mod_id for m in selected], problems), (["A", "B"], []))
+
+
 class IsolationPlanTest(unittest.TestCase):
+    def test_enables_the_set_and_disables_everything_else(self):
+        keep, other = mod("Local", "MyMod", "My.Mod"), mod("Steam Workshop", "9", "My.Mod")
+        values = tbtest.disable_values([keep, other], keep=[keep])
+        self.assertEqual(values, {tbtest.unity_pref_name(keep.enabled_key): [4, 1], tbtest.unity_pref_name(other.enabled_key): [4, 0]})
+
     def test_disables_every_mod_through_its_hashed_value(self):
         mods = [tbtest.InstalledMod("Local", "Local", "My.Local")]
         # [REG_DWORD, 0]: the same [type, data] shape as a snapshot value, so restore_plan can compare them.
@@ -77,14 +135,52 @@ class IsolationPlanTest(unittest.TestCase):
         self.assertEqual(writes, {"changed": [4, 1], "deleted": [3, {"b64": "AA=="}]})
 
 
+class ConfigTest(TempCase):
+    def test_devtests_json_names_the_mod_under_test(self):
+        path = self.write("MyMod/DevTests/devtests.json", json.dumps({"name": "My Mod", "modId": "My.Mod"}))
+        config = tbtest.load_config(path)
+        self.assertEqual((config.name, config.mod_id, config.root), ("My Mod", "My.Mod", (self.root / "MyMod").resolve()))
+
+    def test_devtests_json_without_mod_id_is_refused(self):
+        path = self.write("MyMod/DevTests/devtests.json", json.dumps({"name": "My Mod"}))
+        with self.assertRaisesRegex(ValueError, "modId"):
+            tbtest.load_config(path)
+
+
+class FakePrefs:
+    def __init__(self):
+        self.restored = []
+
+    def restore(self, snapshot):
+        self.restored.append(snapshot)
+        return len(snapshot)
+
+
+class RecoveryTest(TempCase):
+    def test_state_left_by_a_killed_run_is_restored_and_cleared(self):
+        state = self.write("work/state.json", json.dumps({"runId": "run-1", "prefs": {"a": [4, 1]}}))
+        self.write(f"Mods/{tbtest.RUNNER_FOLDER}/request.json")
+        prefs = FakePrefs()
+        message = tbtest.recover(state, self.root / "Mods", prefs)
+        self.assertEqual(prefs.restored, [{"a": [4, 1]}])
+        self.assertFalse(state.exists())
+        self.assertFalse((self.root / "Mods" / tbtest.RUNNER_FOLDER).exists())
+        self.assertIn("run-1", message)
+
+    def test_nothing_left_behind_means_nothing_to_restore(self):
+        prefs = FakePrefs()
+        self.assertIsNone(tbtest.recover(self.root / "work/state.json", self.root / "Mods", prefs))
+        self.assertEqual(prefs.restored, [])
+
+
 class RequestAndLaunchTest(TempCase):
     def test_request_carries_the_batch_map_and_deadline(self):
-        request = tbtest.build_request("run-1", self.root / "run-1", "smoke", "_Mini", speed=30, hours=2, deadline_ms=123, probe_keys=["k"])
+        request = tbtest.build_request("run-1", self.root / "run-1", "smoke", "_Mini", speed=30, hours=2, deadline_ms=123, probe_prefs={"k": 0})
         self.assertEqual(request["Batch"], "smoke")
         self.assertEqual(request["Map"], "_Mini")
         self.assertEqual(request["DeadlineUtcMs"], 123)
         self.assertEqual(request["RunDir"], str(self.root / "run-1"))
-        self.assertEqual(request["ProbePrefKeys"], ["k"])
+        self.assertEqual(request["ProbePrefs"], {"k": 0})
         self.assertTrue(request["SettlementName"])
 
     def test_launch_goes_through_steam_with_the_log_in_the_run_folder(self):
