@@ -13,9 +13,10 @@ Inspect the mod and user-provided notes. Use only confirmed features, game versi
 Before drafting, write a short internal brief. Keep it out of `steam-description.md`.
 
 - **Reader:** a player skimming the Workshop who decides from the opening lines whether to scroll on. Note what they are likely to doubt, such as balance, performance or save safety.
-- **Messages:** at most three things the reader should remember. Other details belong in Features or later sections.
+- **Why:** the problem in the player's game that the mod fixes, as the player would put it, such as "one raid hands my tribal colony assault rifles". Add what the player keeps or gains that the obvious fix would lose, and, when other mods cover the same ground, why a player would pick this one. A page that lists features without this answers what the mod does but not why to install it.
+- **Messages:** at most three things the reader should remember, led by the why. Other details belong in Features or later sections.
 - **Their words:** the in-game names players see, not internal defNames or codenames.
-- **Hook:** one sentence of about 15 words that says, in "you" terms, what the player's game becomes with the mod. Use no figures or version numbers.
+- **Hook:** one sentence of about 15 words that says, in "you" terms, what the player's game becomes with the mod. Ground it in the why, either by naming the problem or by describing the game without it. Use no figures or version numbers.
 - **No-go list:** spoilers, unconfirmed claims, and content that only appears with a DLC or option the reader may not have.
 
 Check the finished description against the brief.
@@ -77,7 +78,7 @@ Use confirmed values only. If a value cannot be confirmed, leave that clause out
 
 State what the mod changes and how that affects the player. Keep the summary concise and evidence-based.
 
-Open with the brief's hook so the player benefit comes first. Lore, background or a fair statement of a likely doubt can follow it. When a likely doubt matters, state it the way the reader would, then answer it with mechanics.
+Open with the brief's hook so the player benefit comes first. Make the why plain within the first paragraph: the problem, how the mod answers it, and what the player still gets. Mechanics such as triggers and exceptions come after it. When choice among similar mods matters, a short second paragraph can say what sets this one apart, such as how configurable it is. Lore, background or a fair statement of a likely doubt can follow. When a likely doubt matters, state it the way the reader would, then answer it with mechanics.
 
 Keep the Description to the brief's messages. Limit any list here to about five items. Move longer supporting lists, such as balance details, into Features as their own subsection, so the version declaration and Features stay near the top.
 
