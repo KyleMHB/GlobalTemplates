@@ -118,6 +118,10 @@ public class Progress
     // batch end; a run recovered after its process died keeps the last count written.
     public int LoggedErrors, ModErrors;
     public bool FailOnModErrors;
+    // Errors naming the mod logged while the game loaded, before this process's first run (StartupLog.Startup). They fail
+    // the run under FailOnModErrors like errors during it. StartupLogComplete is false when the game's log was full.
+    public List<string> StartupModErrors = new();
+    public bool StartupLogComplete = true;
     // Warnings logged during the run that no allowance covers, and whether any fails the run (HarnessSettings.FailOnWarnings).
     public int Warnings;
     public bool FailOnWarnings;
@@ -153,7 +157,7 @@ public class Progress
     public bool OverallPass =>
         Status == RunStatus.Complete && !PendingCases().Any() && !PendingBatches().Any() &&
         BatchRecords.All(b => b.Status == RunStatus.Complete) &&
-        CoverageComplete && !(FailOnModErrors && ModErrors > 0) && !(FailOnWarnings && Warnings > 0) &&
+        CoverageComplete && !(FailOnModErrors && (ModErrors > 0 || StartupModErrors?.Count > 0)) && !(FailOnWarnings && Warnings > 0) &&
         Cases.All(c => c.Diagnostic ? c.Result == c.ExpectedResult : c.Result is Results.Pass or Results.Skip);
 
     // Behaviour checks: neither runner self-checks nor cases that only write evidence (Levels.Evidence).
@@ -183,6 +187,7 @@ public class Progress
             ["schema"] = 2, ["runId"] = RunId, ["status"] = Status, ["reason"] = Reason, ["overallPass"] = OverallPass,
             ["assertionsPass"] = AssertionsPass, ["coverageComplete"] = CoverageComplete,
             ["loggedErrors"] = LoggedErrors, ["modErrors"] = ModErrors, ["failOnModErrors"] = FailOnModErrors,
+            ["startupModErrors"] = StartupModErrors ?? new List<string>(), ["startupLogComplete"] = StartupLogComplete,
             ["warnings"] = Warnings, ["failOnWarnings"] = FailOnWarnings,
             ["coverageGaps"] = Cases.Where(c => !c.Diagnostic && c.Result == Results.Skip).GroupBy(c => c.CoverageReason ?? CoverageReasons.Unclassified).ToDictionary(g => g.Key, g => g.Count()),
             ["startedUtc"] = StartedUtc, ["finishedUtc"] = FinishedUtc, ["request"] = Request,
@@ -225,6 +230,16 @@ public class Progress
             text.AppendLine($"Diagnostic (runner self-checks): {diagnostic.Count(c => c.Result == c.ExpectedResult)} of {diagnostic.Count} reported as intended");
         int pending = PendingCases().Count();
         text.AppendLine($"Pending: {pending} cases" + (PendingBatches().Any() ? ", batches not started: " + string.Join(", ", PendingBatches()) : ""));
+        var startup = StartupModErrors ?? new List<string>();
+        if (startup.Count > 0)
+        {
+            text.AppendLine($"Startup: {startup.Count} error(s) naming '{Harness.Settings.ErrorMarker}' while the game loaded" +
+                            (FailOnModErrors ? " (FAILS the run)" : " (not counted against the result)"));
+            foreach (var line in startup.Take(5)) text.AppendLine("  STARTUP ERROR " + line);
+        }
+        else text.AppendLine(StartupLogComplete
+            ? $"Startup: no errors naming '{Harness.Settings.ErrorMarker}' while the game loaded"
+            : "Startup: not checked; the game's log was full (1000 messages) before the first run, so startup errors may have been dropped. Run in a fresh launch");
         if (LoggedErrors > 0)
             text.AppendLine($"Logged errors: {LoggedErrors} during the run, {ModErrors} naming '{Harness.Settings.ErrorMarker}'" +
                             (ModErrors > 0 ? FailOnModErrors ? " (FAILS the run)" : " (not counted against the result)" : ""));

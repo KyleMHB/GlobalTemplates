@@ -4,6 +4,10 @@
 
 ## 2026-11-22
 
+### Added
+
+- RimWorld Dev Tests reports errors naming the mod that were logged while the game loaded. Every summary has a `Startup:` line, `report.json` lists them in `startupModErrors`, and under `FailOnModErrors` they fail the run. Mods no longer need their own startup-log batch.
+
 ### Changed
 
 - `devlog-post` drafts Discord posts only. It no longer asks which platforms you post to or drafts for X or Bluesky.

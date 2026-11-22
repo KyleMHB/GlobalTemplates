@@ -66,6 +66,8 @@ The runner provides a session inbox and heartbeat, progress reports, panel and c
 
 Every run counts the errors the game logged, in total and those naming the mod under test. The count includes Unity errors and uncaught exceptions that never went through `Verse.Log.Error`, such as one thrown in a per-frame Harmony patch, without counting an error twice; one whose stack trace names the mod's assembly or namespaces counts as the mod's. The summary shows both counts and lists each passing case that ran over logged errors. A mod that sets `FailOnModErrors` in its settings class fails any run that logged an error naming it.
 
+Every run also reports errors naming the mod that were logged while the game loaded, before the process's first run, such as a bad def or a patch that failed. The summary prints a `Startup:` line with the first five, and `report.json` lists them in `startupModErrors`. Under `FailOnModErrors` they fail the run too. The game keeps only its newest 1000 log messages, so when the log was already full the summary says startup was not checked; run in a fresh launch.
+
 Each run folder also keeps a copy of `Player.log`. The harness's copy of `Prefs.xml` keeps the player's display settings but always uses English and a one-day autosave interval.
 
 World and colony creation use the requested seed. Simulation after map generation is not deterministically seeded. Passing cases establish only their measured behavior. The caller manages any temporary mod-list change and restores it afterwards.

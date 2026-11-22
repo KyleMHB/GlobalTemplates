@@ -90,6 +90,7 @@ public static class TestRunner
         foreach (var b in batches) b.Archive(request, dir);
         var progress = new Progress { RunId = runId, Request = request, StartedUtc = DateTime.UtcNow.ToString("o"), Stage = Controller.LeaveGame,
             FailOnModErrors = Harness.Settings.FailOnModErrors, FailOnWarnings = Harness.Settings.FailOnWarnings };
+        (progress.StartupModErrors, progress.StartupLogComplete) = StartupLog.Startup();
         File.WriteAllText(ActivePointer, dir);
         controller = new Controller(progress, dir);
         controller.Save();

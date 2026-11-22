@@ -144,6 +144,28 @@ public static class StartupLog
         lock (logged) if (logged.Count < 50) logged.Add(text.Split('\n')[0]);
     }
 
+    // The game keeps its newest 1000 messages (LogMessageQueue.maxMessages); at that size the oldest, startup's, may be gone.
+    private const int GameLogLimit = 1000;
+    private static List<string> startupErrors;
+    private static bool startupComplete;
+
+    // Errors naming the mod that were logged while the game loaded, taken once, when the process's first run starts. A
+    // launcher session serves many runs, so every run reports the same snapshot. Allowed errors are left out. Complete is
+    // false when the game's log was already full, so startup errors may have been dropped.
+    public static (List<string> Errors, bool Complete) Startup()
+    {
+        if (startupErrors == null)
+        {
+            var messages = Log.Messages.ToList();
+            startupComplete = messages.Count < GameLogLimit;
+            var queued = messages.Where(m => m.type == LogMessageType.Error && m.text != null && !CaseErrors.AllowedError(m.text, () => m.StackTrace) &&
+                                             (CaseErrors.NamesMod(m.text) || CaseErrors.NamesMod(m.StackTrace)))
+                .Select(m => m.text.Split('\n')[0]);
+            lock (logged) startupErrors = queued.Concat(logged).Distinct().Take(50).ToList();
+        }
+        return (startupErrors, startupComplete);
+    }
+
     // Distinct first lines of every error naming the mod, from the game's log queue and from this hook.
     public static List<string> ModErrors()
     {
@@ -218,6 +240,7 @@ public static class LaunchArguments
         Directory.CreateDirectory(dir);
         if (request.Batches.Count == 0) request.Batches = new List<string> { request.Batch };
         var progress = new Progress { RunId = id, Request = request, Status = RunStatus.Refused, Reason = refusal, StartedUtc = DateTime.UtcNow.ToString("o") };
+        (progress.StartupModErrors, progress.StartupLogComplete) = StartupLog.Startup();
         Controller.WriteOutputs(progress, dir);
     }
 }

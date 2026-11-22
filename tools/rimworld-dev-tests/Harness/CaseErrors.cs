@@ -48,7 +48,7 @@ public static class CaseErrors
         return false;
     }
 
-    private static bool AllowedError(string text, Func<string> stack) =>
+    internal static bool AllowedError(string text, Func<string> stack) =>
         Allowed(allowedErrors ??= Harness.Settings.AllowedErrors.ToArray(), text, stack);
 
     // Harmony prefix on Verse.Log.Warning(string), bound by position. Never blocks the original. The runner's own lines and
@@ -109,7 +109,7 @@ public static class CaseErrors
 
     // The ErrorMarker, or a frame in the production assembly: its name or one of its namespaces followed by a type. Namespaces the
     // game also declares are left out.
-    private static bool NamesMod(string text)
+    internal static bool NamesMod(string text)
     {
         if (string.IsNullOrEmpty(text)) return false;
         if (text.Contains(Harness.Settings.ErrorMarker)) return true;
