@@ -156,6 +156,7 @@ public class BatchContext
             StartHours = Hours, ErrorMark = ErrorMark,
         };
         if (existing == null) RunReport.Cases.Add(c);
+        RunTimeline.Event("case-start", batch.Id, id);
         return new CaseScope(c, this);
     }
 }

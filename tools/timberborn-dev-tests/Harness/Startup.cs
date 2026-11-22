@@ -21,6 +21,9 @@ public static class Runner
     {
         Request = request;
         Directory.CreateDirectory(request.RunDir);
+        RunTimeline.Configure(request.RunDir);
+        RunTimeline.Event("run-start", detail: request.Batch);
+        ModErrors.Configure(request);
         RunReport.StartCounting();
     }
 }

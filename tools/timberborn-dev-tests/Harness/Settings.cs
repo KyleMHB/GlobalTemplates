@@ -20,6 +20,12 @@ public abstract class HarnessSettings
     public virtual string DefaultMap => Harness.BuiltinMap;
     public virtual string DefaultFaction => Harness.BuiltinFaction;
 
+    // Text that marks a logged error as the mod's, besides a stack frame in one of its namespaces.
+    public virtual string ErrorMarker => DisplayName;
+    // When true, a run that logged any error naming the mod, while the game loaded or during the run, does not pass overall,
+    // even if every case passed.
+    public virtual bool FailOnModErrors => false;
+
     // Runs on the game thread when a batch ends, however it ended. Restore any process-wide state a batch changed here.
     public virtual void OnBatchEnd() { }
 }

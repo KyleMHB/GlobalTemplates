@@ -127,6 +127,15 @@ class IsolationPlanTest(unittest.TestCase):
         # [REG_DWORD, 0]: the same [type, data] shape as a snapshot value, so restore_plan can compare them.
         self.assertEqual(tbtest.disable_values(mods), {tbtest.unity_pref_name("ModEnabled.Local.Local.My.Local"): [4, 0]})
 
+    def test_runner_priority_puts_its_starter_before_every_mod(self):
+        # ModSorter orders by OriginalIndex - ModPriority, so only a priority above any index guarantees the runner's starter
+        # runs first and sees the mod's startup errors.
+        values = tbtest.runner_priority()
+        self.assertEqual(list(values), [tbtest.unity_pref_name("ModPriority.Local.TimberbornDevTests.TimberbornDevTests")])
+        kind, priority = values[tbtest.unity_pref_name("ModPriority.Local.TimberbornDevTests.TimberbornDevTests")]
+        self.assertEqual(kind, 4)
+        self.assertGreater(priority, 10000)
+
     def test_restore_plan_returns_the_key_to_the_snapshot_exactly(self):
         snapshot = {"kept": [4, 1], "changed": [4, 1], "deleted": [3, {"b64": "AA=="}]}
         current = {"kept": [4, 1], "changed": [4, 0], "added": [4, 0]}
@@ -183,6 +192,17 @@ class RequestAndLaunchTest(TempCase):
         self.assertEqual(request["ProbePrefs"], {"k": 0})
         self.assertTrue(request["SettlementName"])
 
+    def test_request_names_the_mod_under_test_and_keep_open(self):
+        request = tbtest.build_request("run-1", self.root, "smoke", None, 30, 2, 0, mod_name="My Mod",
+                                       mod_assemblies=["MyMod"], keep_open=True)
+        self.assertEqual((request["ModName"], request["ModAssemblies"], request["KeepOpen"]), ("My Mod", ["MyMod"], True))
+
+    def test_mod_assemblies_are_every_dll_the_game_would_load_from_the_mod_folder(self):
+        self.write("Mods/MyMod/version-1.1/MyMod.dll")
+        self.write("Mods/MyMod/version-1.1/Libs/Helper.dll")
+        self.write("Mods/MyMod/manifest.json")
+        self.assertEqual(tbtest.mod_assemblies(self.root / "Mods/MyMod"), ["Helper", "MyMod"])
+
     def test_launch_goes_through_steam_with_the_log_in_the_run_folder(self):
         command = tbtest.launch_command("C:/Steam/steam.exe", self.root / "run/Player.log")
         self.assertEqual(command, ["C:/Steam/steam.exe", "-applaunch", "1062090", "-skipModManager", "-logFile", str(self.root / "run/Player.log")])
@@ -195,6 +215,56 @@ class RequestAndLaunchTest(TempCase):
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["Id"], tbtest.RUNNER_ID)
         self.assertEqual(json.loads((folder / "request.json").read_text(encoding="utf-8")), {"RunId": "r"})
+
+
+class ReleaseCheckTest(TempCase):
+    def test_a_clean_package_has_no_problems(self):
+        self.write("Mod/version-1.1/MyMod.dll", "plain production code")
+        self.write("Mod/manifest.json", json.dumps({"Id": "My.Mod"}))
+        self.assertEqual(tbtest.release_problems(self.root / "Mod"), [])
+
+    def test_developer_dlls_runner_references_and_runner_files_are_flagged(self):
+        self.write("Mod/MyMod.DevTests.dll")
+        # A production DLL built against the runner carries its assembly name as a reference.
+        self.write("Mod/MyMod.dll", "...TimberbornDevTests\0...")
+        self.write("Mod/request.json", "{}")
+        self.write("Mod/Runner/manifest.json", json.dumps({"Id": tbtest.RUNNER_ID}))
+        problems = tbtest.release_problems(self.root / "Mod")
+        self.assertEqual(problems, [
+            f"DevTests assembly present: {self.root / 'Mod/MyMod.DevTests.dll'}",
+            f"runner reference found in {self.root / 'Mod/MyMod.dll'}",
+            f"runner request present: {self.root / 'Mod/request.json'}",
+            f"runner manifest present: {self.root / 'Mod/Runner/manifest.json'}",
+        ])
+
+
+class ListTest(TempCase):
+    def batch_list(self, run, mod_name, batches):
+        self.write(f"runs/{run}/report.json", "{}")
+        return self.write(f"runs/{run}/batches.json", json.dumps({"modName": mod_name, "runAll": [], "batches": batches}))
+
+    def test_lists_the_newest_batch_list_for_the_mod(self):
+        import contextlib, io, os
+        old = self.batch_list("run-1", "My Mod", [{"id": "old", "diagnostic": False, "cases": ["a"]}])
+        new = self.batch_list("run-2", "My Mod", [{"id": "smoke", "diagnostic": False, "cases": ["smoke.new-game"]},
+                                                  {"id": "diagnostic", "diagnostic": True, "cases": ["x", "y", "z"]}])
+        other = self.batch_list("run-3", "Other Mod", [{"id": "other", "diagnostic": False, "cases": []}])
+        for i, path in enumerate((old, new, other)):
+            os.utime(path.parent / "report.json", (1000 + i, 1000 + i))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = tbtest.list_batches(self.root / "runs", "My Mod")
+        self.assertEqual(code, 0)
+        self.assertEqual(out.getvalue().splitlines()[1:], ["smoke: 1 cases", "diagnostic: 3 cases (runner self-check)"])
+        self.assertIn("run-2", out.getvalue().splitlines()[0])
+
+    def test_no_list_yet_says_when_one_appears(self):
+        import contextlib, io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = tbtest.list_batches(self.root / "runs", "My Mod")
+        self.assertEqual(code, 1)
+        self.assertIn("No batch list yet", out.getvalue())
 
 
 class SummaryTest(TempCase):
@@ -253,6 +323,36 @@ class SummaryTest(TempCase):
         text = tbtest.write_summary(self.root, "run-1", report, {"problems": []})
         self.assertIn("  Not covered: 1 skipped case(s)\n    SKIP [known-gap] mod/mod.gap: known gap, x: y", text)
         self.assertIn("  KNOWN GAP NOW HOLDS in mod/mod.fixed: 1 step(s) marked FIXED; make each a Step", text)
+
+    # Field names below are copied from Harness/Report.cs (RunReport.Finish); the wording follows RimWorld's Report.cs.
+    def startup_report(self, startup, fail_on_mod_errors, mod_errors=0):
+        return {"status": "complete", "overallPass": not (fail_on_mod_errors and (startup or mod_errors)), "errorCount": len(startup) + mod_errors,
+                "exceptionCount": 0, "batches": [], "cases": [{"Id": "smoke.new-game", "Batch": "smoke", "Result": "pass"}],
+                "errorMarker": "My Mod", "startupModErrors": startup, "failOnModErrors": fail_on_mod_errors, "modErrors": mod_errors, "loggedErrors": mod_errors}
+
+    def test_startup_errors_naming_the_mod_are_listed_and_counted_under_fail_on_mod_errors(self):
+        errors = [f"Error: boom {i} in MyMod.Starter" for i in range(6)]
+        text = tbtest.write_summary(self.root, "run-1", self.startup_report(errors, True), {"problems": []})
+        self.assertIn("FAIL", text.splitlines()[0])
+        self.assertIn("  Startup: 6 error(s) naming 'My Mod' while the game loaded (FAILS the run)", text)
+        self.assertIn("    STARTUP ERROR Error: boom 4 in MyMod.Starter", text)
+        self.assertNotIn("boom 5", text)
+
+    def test_startup_errors_without_fail_on_mod_errors_do_not_count(self):
+        text = tbtest.write_summary(self.root, "run-1", self.startup_report(["Error: boom"], False), {"problems": []})
+        self.assertIn("PASS", text.splitlines()[0])
+        self.assertIn("  Startup: 1 error(s) naming 'My Mod' while the game loaded (not counted against the result)", text)
+
+    def test_a_clean_startup_says_so_and_run_errors_naming_the_mod_are_counted(self):
+        text = tbtest.write_summary(self.root, "run-1", self.startup_report([], True, mod_errors=2), {"problems": []})
+        self.assertIn("  Startup: no errors naming 'My Mod' while the game loaded", text)
+        self.assertIn("  Logged errors: 2 during the run, 2 naming 'My Mod' (FAILS the run)", text)
+
+    def test_a_run_without_a_mod_under_test_has_no_startup_check(self):
+        report = self.startup_report([], False)
+        report["errorMarker"] = None
+        text = tbtest.write_summary(self.root, "run-1", report, {"problems": []})
+        self.assertIn("  Startup: not checked; no mod under test (run with --config)", text)
 
     def test_a_batch_that_ended_early_is_named(self):
         report = {"status": "complete", "overallPass": False, "cases": [],

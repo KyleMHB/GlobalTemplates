@@ -45,6 +45,12 @@ public class RunRequest
     public float GameHours = 2f;
     // When the launcher will kill the game (UTC milliseconds), less a margin; 0 when no launcher set a limit.
     public long DeadlineUtcMs;
+    // The mod under test (devtests.json "name"; the ErrorMarker without a HarnessSettings) and the names of the assemblies in
+    // its folder, whose namespaces mark its errors. Unset for a run without a mod under test.
+    public string ModName;
+    public List<string> ModAssemblies = new();
+    // Leave the game paused after the report instead of quitting; the launcher waits for the player to close it.
+    public bool KeepOpen;
 }
 
 public class CaseRecord
@@ -116,6 +122,7 @@ public static class RunReport
             if (errors.Count < 50) errors.Add($"{type}: {condition}\n{stackTrace}".Trim());
         }
         CaseErrors.Record((type == LogType.Exception ? "uncaught exception: " : type + ": ") + condition);
+        ModErrors.Record((type == LogType.Exception ? "uncaught exception: " : type + ": ") + condition, stackTrace);
     }
 
     public static CaseRecord Case(string batch, string id) => Cases.FirstOrDefault(c => c.Batch == batch && c.Id == id);
@@ -143,7 +150,7 @@ public static class RunReport
     }
 
     private static bool OverallPass(string status) =>
-        status == RunStatus.Complete && Cases.Count > 0 && Batches.All(b => b.Status == RunStatus.Complete) &&
+        status == RunStatus.Complete && Cases.Count > 0 && Batches.All(b => b.Status == RunStatus.Complete) && !ModErrors.Fails &&
         Cases.All(c => c.Diagnostic ? c.Result == c.ExpectedResult : c.Result is Results.Pass or Results.Skip);
 
     // Hook for the open batch's runner, so a deadline or crash closes its cases before the report is written.
@@ -159,6 +166,8 @@ public static class RunReport
             if (TimberbornDevTests.Batches.All.TryGetValue(batch.Id, out var planned))
                 CloseBatch(batch, planned.Plan, planned.Diagnostic, "the game never became ready: " + (reason ?? status));
         written = true;
+        // A run that ends before the main menu (a crash in a mod's starter, a refusal) closes the startup window here.
+        ModErrors.EndStartup();
         var request = Runner.Request;
         Data["status"] = status;
         Data["reason"] = reason;
@@ -175,11 +184,23 @@ public static class RunReport
             Data["exceptionCount"] = exceptionCount;
             Data["errors"] = errors.ToArray();
         }
+        Data["errorMarker"] = ModErrors.Marker;
+        Data["failOnModErrors"] = ModErrors.FailOnModErrors;
+        Data["startupModErrors"] = ModErrors.Startup;
+        Data["loggedErrors"] = ModErrors.LoggedDuring;
+        Data["modErrors"] = ModErrors.During;
         Data["overallPass"] = OverallPass(status);
+        RunTimeline.Event("finish", detail: status);
         string path = Path.Combine(request.RunDir, "report.json");
         File.WriteAllText(path + ".tmp", JsonConvert.SerializeObject(Data, Formatting.Indented));
         File.Copy(path + ".tmp", path, true);
         File.Delete(path + ".tmp");
+        if (request.KeepOpen)
+        {
+            // GameRunner.EndBatch already stopped game time; the launcher waits for the player to close the game.
+            Runner.Log($"Report written ({status}): {path}. Left open (--keep-open).");
+            return;
+        }
         Runner.Log($"Report written ({status}): {path}. Quitting.");
         Application.Quit();
     }

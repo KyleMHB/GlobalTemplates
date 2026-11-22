@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Newtonsoft.Json;
 using Bindito.Core;
 using Timberborn.GameSceneLoading;
 using Timberborn.MapRepositorySystem;
@@ -40,9 +43,12 @@ public class MainMenuStarter : IUpdatableSingleton
         var request = Runner.Request;
         RunReport.Data["mainMenuReachedAtSeconds"] = UnityEngine.Time.realtimeSinceStartup;
         Runner.Stage = "main-menu";
+        ModErrors.EndStartup();
+        RunTimeline.Event("main-menu");
         Batch batch;
         try
         {
+            WriteBatchList(request);
             if (!Batches.All.TryGetValue(request.Batch ?? "", out batch))
             {
                 RunReport.Finish(RunStatus.Refused, $"unknown batch {request.Batch}; batches: {string.Join(", ", Batches.All.Keys.OrderBy(k => k))}");
@@ -78,5 +84,18 @@ public class MainMenuStarter : IUpdatableSingleton
             record.Reason = refusal;
             RunReport.Finish(RunStatus.Refused, refusal);
         }
+    }
+
+    // <run>/batches.json, so `tbtest.py list` can show the batches without starting the game. Each run writes its own: the
+    // runs folder is shared by every mod's runs, and list reads the newest one for its mod.
+    private static void WriteBatchList(RunRequest request)
+    {
+        var settings = Harness.Settings;
+        File.WriteAllText(Path.Combine(request.RunDir, "batches.json"), JsonConvert.SerializeObject(new
+        {
+            modName = request.ModName,
+            runAll = settings?.RunAll?.ToList() ?? new List<string>(),
+            batches = Batches.All.Values.Select(b => new { id = b.Id, diagnostic = b.Diagnostic, cases = b.Plan.Select(p => p.Id).ToList() }).ToList(),
+        }, Formatting.Indented));
     }
 }

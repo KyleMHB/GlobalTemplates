@@ -1,7 +1,8 @@
 """Launcher for the Timberborn developer test harness (TimberbornDevTests): the Timberborn adapter over dev-tests-core.
 
-  python tbtest.py [--config <mod>/DevTests/devtests.json] run smoke [--map _Mini] [--hours H] [--speed S] [--timeout S] [--startup-timeout S]
-  python tbtest.py restore | latest | prune [--keep N]
+  python tbtest.py [--config <mod>/DevTests/devtests.json] run smoke [--map _Mini] [--hours H] [--speed S] [--timeout S] [--startup-timeout S] [--keep-open]
+  python tbtest.py [--config ...] list | release-check [mod_dir]
+  python tbtest.py restore | latest [--batch B] | timings [run] | prune [--keep N]
 
 `run` builds the runner, installs it into Documents/Timberborn/Mods/TimberbornDevTests with a request.json, and isolates
 mods through the game's own PlayerPrefs keys: the mod named by devtests.json ("modId") and its transitive RequiredMods stay
@@ -75,6 +76,9 @@ class Paths:
     @property
     def workshop(self):
         return self.game_dir.parents[1] / "workshop/content" / APP_ID
+
+    def mod_folder(self, mod):
+        return (self.mods if mod.source == "Local" else self.workshop) / mod.folder
 
     @property
     def error_reports(self):
@@ -266,14 +270,32 @@ def disable_values(mods, keep=()):
     return {unity_pref_name(mod.enabled_key): [4, 1 if mod in keep else 0] for mod in mods}  # 4 = REG_DWORD
 
 
+# ModSorter orders mods by (sorted index - ModPriority), and ModCodeStarter runs the starters in that order. A priority above
+# any index puts the runner's starter first, so its log hook sees every error the mod's starter logs. The game rewrites the
+# value after sorting; the exact restore puts it back.
+RUNNER_PRIORITY = 100000
+
+
+def runner_priority():
+    return {unity_pref_name(f"ModPriority.Local.{RUNNER_FOLDER}.{RUNNER_ID}"): [4, RUNNER_PRIORITY]}
+
+
+def mod_assemblies(folder):
+    """Names of the assemblies in a mod folder: the game loads every *.dll under it. Their namespaces mark the mod's errors."""
+    return sorted({p.stem for p in Path(folder).rglob("*.dll")})
+
+
 # ---- Request, install and launch -------------------------------------------------------------------------------------------
 
-def build_request(run_id, run_dir, batch, map_name, speed, hours, deadline_ms, probe_prefs=None):
+def build_request(run_id, run_dir, batch, map_name, speed, hours, deadline_ms, probe_prefs=None, mod_name=None,
+                  mod_assemblies=(), keep_open=False):
     """probe_prefs maps each enable key the launcher wrote (raw, as PlayerPrefs.HasKey takes it) to the value written; the
-    starter refuses the run if the game sees any of them missing or different."""
-    return {"RunId": run_id, "RunDir": str(run_dir), "Batch": batch, "Mode": "new", "Map": map_name,
+    starter refuses the run if the game sees any of them missing or different. mod_name and mod_assemblies let the runner
+    recognise errors naming the mod under test (its ErrorMarker falls back to mod_name)."""
+    return {"RunId": run_id, "RunDir": str(run_dir), "Batch": batch, "Map": map_name,
             "SettlementName": f"DevTests-{run_id}", "Speed": speed, "GameHours": hours, "DeadlineUtcMs": deadline_ms,
-            "ProbePrefs": dict(probe_prefs or {})}
+            "ProbePrefs": dict(probe_prefs or {}), "ModName": mod_name, "ModAssemblies": list(mod_assemblies),
+            "KeepOpen": keep_open}
 
 
 def runner_manifest():
@@ -348,6 +370,25 @@ def case_lines(cases, batches):
     return lines
 
 
+def mod_error_lines(report):
+    """Errors naming the mod under test, as the runner's Report.cs records them: those logged while the game loaded (until the
+    main menu) and those logged during the run. Under the mod's FailOnModErrors either kind fails the run."""
+    marker = report.get("errorMarker")
+    if not marker:
+        return ["  Startup: not checked; no mod under test (run with --config)"]
+    counted = " (FAILS the run)" if report.get("failOnModErrors") else " (not counted against the result)"
+    startup = report.get("startupModErrors") or []
+    if startup:
+        lines = [f"  Startup: {len(startup)} error(s) naming '{marker}' while the game loaded{counted}"]
+        lines += [f"    STARTUP ERROR {line}" for line in startup[:5]]
+    else:
+        lines = [f"  Startup: no errors naming '{marker}' while the game loaded"]
+    logged, naming = report.get("loggedErrors") or 0, report.get("modErrors") or 0
+    if logged:
+        lines.append(f"  Logged errors: {logged} during the run, {naming} naming '{marker}'" + (counted if naming else ""))
+    return lines
+
+
 def write_summary(run_dir, run_id, report, launcher):
     problems = launcher.get("problems") or []
     if report is None:
@@ -361,6 +402,7 @@ def write_summary(run_dir, run_id, report, launcher):
         lines.append(f"  status {report.get('status')}" + (f": {report['reason']}" if report.get("reason") else "")
                      + f"; errors {report.get('errorCount')}, exceptions {report.get('exceptionCount')}")
         lines += case_lines(report.get("cases") or [], report.get("batches") or [])
+        lines += mod_error_lines(report)
     log = launcher.get("logErrors")
     if log and (log.get("exceptions") or log.get("crashed")):
         lines.append(f"  Player.log: {log['exceptions']} exception(s){', crashed' if log.get('crashed') else ''}; first: "
@@ -373,7 +415,72 @@ def write_summary(run_dir, run_id, report, launcher):
     return text
 
 
+# ---- Evidence and release ----------------------------------------------------------------------------------------------------
+
+def release_problems(mod_dir):
+    """Developer test files in a mod package: a DevTests DLL, a DLL that references the runner, or the runner's own files."""
+    problems = []
+    mod_dir = Path(mod_dir)
+    marker = RUNNER_ID.encode()
+    for dll in sorted(mod_dir.rglob("*.dll")):
+        if "devtests" in dll.name.lower():
+            problems.append(f"DevTests assembly present: {dll}")
+        elif marker in (data := dll.read_bytes()) or RUNNER_ID.encode("utf-16-le") in data:
+            problems.append(f"runner reference found in {dll}")
+    problems += [f"runner request present: {p}" for p in sorted(mod_dir.rglob("request.json"))]
+    for manifest in sorted(mod_dir.rglob("manifest.json")):
+        try:
+            runner = json.loads(manifest.read_text(encoding="utf-8-sig")).get("Id") == RUNNER_ID
+        except (ValueError, AttributeError):
+            runner = False
+        if runner:
+            problems.append(f"runner manifest present: {manifest}")
+    return problems
+
+
+def list_batches(evidence_root, mod_name):
+    """The batches from the newest run of this mod (None: runs without --config). The runner writes batches.json into each
+    run folder when it reaches the main menu."""
+    for folder in reversed(core.run_dirs(evidence_root, RUN_FILES)):
+        try:
+            listed = json.loads((folder / "batches.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if listed.get("modName") != mod_name:
+            continue
+        print(f"Batches from run {folder.name} (the list a newer runner or DevTests build offers may differ):")
+        for entry in listed.get("batches") or []:
+            print(f"{entry['id']}: {len(entry.get('cases') or [])} cases" + (" (runner self-check)" if entry.get("diagnostic") else ""))
+        if listed.get("runAll"):
+            print("run-all order: " + ", ".join(listed["runAll"]))
+        return 0
+    print("No batch list yet: the game writes it each time a run reaches the main menu, so it appears after the first run.")
+    return 1
+
+
 # ---- Commands --------------------------------------------------------------------------------------------------------------
+
+def release_check(mod_dir, config, paths):
+    """The package check of D8 (the perf rule is T6). The default package is the installed copy the run would load."""
+    if mod_dir is None:
+        if config is None:
+            print("REFUSED: name the mod folder to check, or pass --config")
+            return 3
+        selected, problems = select_mods(config.mod_id, installed_mods(paths.workshop, paths.mods))
+        if not selected:
+            print("REFUSED:", problems[0])
+            return 3
+        mod_dir = paths.mod_folder(selected[0])
+    if not Path(mod_dir).is_dir():
+        print(f"REFUSED: no mod folder at {mod_dir}")
+        return 3
+    problems = release_problems(mod_dir)
+    for problem in problems:
+        print("FAIL:", problem)
+    if not problems:
+        print("PASS: no developer test runner in", mod_dir)
+    return 1 if problems else 0
+
 
 def recover(state_file, mods_dir, prefs):
     """Undo what a run left behind (its launcher was killed before its finally block): the PlayerPrefs key back to the
@@ -431,8 +538,11 @@ def run(args, paths, prefs, config=None):
     run_dir.mkdir(parents=True)
     started = time.monotonic()
     deadline = started + args.timeout
+    # selected[0] is the mod under test (select_mods starts from it).
     request = build_request(run_id, run_dir, args.batch, args.map, args.speed, args.hours, core.game_deadline(deadline),
-                            {m.enabled_key: 1 if m in selected else 0 for m in mods})
+                            {m.enabled_key: 1 if m in selected else 0 for m in mods}, mod_name=config and config.name,
+                            mod_assemblies=mod_assemblies(paths.mod_folder(selected[0])) if selected else (),
+                            keep_open=args.keep_open)
     snapshot = prefs.read()
     protected_before, reports_before = core.tree_snapshot(*paths.protected), core.tree_snapshot(paths.error_reports)
     STATE.write_text(json.dumps({"runId": run_id, "prefs": snapshot}), encoding="utf-8")
@@ -477,7 +587,7 @@ def run(args, paths, prefs, config=None):
 def drive(args, paths, prefs, mods, selected, dlls, request, run_dir, launcher, started, deadline):
     """Isolate, install, launch and wait for the report. True when the run hit its time limit."""
     # Isolation only writes values; the finally block in run() restores the snapshot taken before this.
-    prefs.apply([], disable_values(mods, keep=selected))
+    prefs.apply([], {**disable_values(mods, keep=selected), **runner_priority()})
     install_runner(dlls, paths.mods, request)
     command = launch_command(steam_exe(), run_dir / "Player.log")
     launcher["command"] = command
@@ -491,10 +601,24 @@ def drive(args, paths, prefs, mods, selected, dlls, request, run_dir, launcher, 
     print(f"Timberborn started (pid {pid}).", flush=True)
     process = core.GameProcess(pid)
     report_path = run_dir / "report.json"
+    # The runner's starter writes a heartbeat within a second of activating, or the report if it refused at once.
+    runner_seen = (run_dir / "heartbeat.json", report_path)
+    startup_deadline = started + args.startup_timeout
     try:
         while process.alive() and not report_path.is_file() and time.monotonic() < deadline:
+            if time.monotonic() >= startup_deadline and not any(p.is_file() for p in runner_seen):
+                launcher["problems"].append(
+                    f"STARTUP FAILED: the runner did not start in the game within {args.startup_timeout} s; see Player.log "
+                    "(a large mod set may need a longer --startup-timeout)")
+                print(launcher["problems"][-1], flush=True)
+                process.kill()
+                return False
             time.sleep(1)
-        if report_path.is_file() and not process.wait(60):
+        if report_path.is_file() and args.keep_open:
+            print("Run finished; the game is left paused. Close Timberborn to finish cleanup.", flush=True)
+            while not process.wait(3600):
+                pass
+        elif report_path.is_file() and not process.wait(60):
             launcher["problems"].append("the game wrote its report but did not quit within 60 s; killed")
         timed_out = not report_path.is_file() and process.alive()
         if timed_out:
@@ -518,24 +642,40 @@ def run_command(argv=None):
     launch.add_argument("--speed", type=float, default=30.0, help="game speed while it runs (dev speeds: 30, 99)")
     launch.add_argument("--timeout", type=int, default=600,
                         help=f"wall-clock seconds for the whole run; the game closes it {core.DEADLINE_GRACE} s before and is killed at it")
-    launch.add_argument("--startup-timeout", type=int, default=120, help="seconds for Timberborn.exe to appear after steam -applaunch")
+    launch.add_argument("--startup-timeout", type=int, default=120,
+                        help="seconds a newly launched game has to start the runner, from steam -applaunch")
+    launch.add_argument("--keep-open", action="store_true", help="leave the game paused after the run; close it to finish cleanup")
     commands.add_parser("restore", help="put back the PlayerPrefs key and remove the runner after an interrupted run")
-    commands.add_parser("latest", help="print the latest run's summary without launching Timberborn")
+    show = commands.add_parser("latest", help="print the latest run's summary, or that it has no report, without launching Timberborn")
+    show.add_argument("--batch")
+    timing = commands.add_parser("timings", help="per-batch wall clock of a run, slowest first, without launching Timberborn")
+    timing.add_argument("run", nargs="?", help="run folder name or path (default: the latest run)")
+    commands.add_parser("list", help="list the mod's batches from its newest run, without launching Timberborn")
+    check = commands.add_parser("release-check", help="verify a mod folder contains no developer test runner or DevTests DLL")
+    check.add_argument("mod_dir", nargs="?", type=Path, help="the package to check (default: the installed folder of --config's mod)")
     pruner = commands.add_parser("prune", help="delete old run folders")
-    pruner.add_argument("--keep", type=int, default=20)
+    pruner.add_argument("--keep", type=int, default=20, help="newest run folders to keep")
     args = parser.parse_args(argv)
     if args.command == "latest":
-        return core.latest(EVIDENCE, run_files=RUN_FILES, unfinished_files=LAUNCHER_FILES)
+        return core.latest(EVIDENCE, args.batch, run_files=RUN_FILES, unfinished_files=LAUNCHER_FILES)
+    if args.command == "timings":
+        return core.timings(EVIDENCE, args.run, run_files=RUN_FILES)
     if args.command == "prune":
         if args.keep < 1:
             parser.error("--keep must be at least 1")
         return core.prune(EVIDENCE, args.keep, run_files=RUN_FILES)
+    config = load_config(args.config) if args.config else None
+    if args.command == "list":
+        if config:
+            print("Mod under test: " + config.mod_id)
+        return list_batches(EVIDENCE, config and config.name)
     paths, prefs = resolve_paths(), RegistryPrefs()
+    if args.command == "release-check":
+        return release_check(args.mod_dir, config, paths)
     if args.command == "restore":
         return restore(paths, prefs)
     if args.timeout <= 0 or args.startup_timeout <= 0:
         parser.error("--timeout and --startup-timeout must be greater than zero")
-    config = load_config(args.config) if args.config else None
     WORK.mkdir(parents=True, exist_ok=True)
     return run(args, paths, prefs, config)
 

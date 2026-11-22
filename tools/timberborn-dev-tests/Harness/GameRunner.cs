@@ -94,6 +94,7 @@ public class GameRunner : ILoadableSingleton, IUpdatableSingleton
         record.Setup.Add("Autosave suspended for this runner-owned game; saves go only to the run folder");
         record.Setup.Add("Randomness is not seeded; cases assert on ranges (D6)");
         Runner.Stage = "running";
+        RunTimeline.Event("batch-start", batch.Id);
         step = Step.Running;
         SetSpeed(0f);
         StartSegment(0);
@@ -185,6 +186,7 @@ public class GameRunner : ILoadableSingleton, IUpdatableSingleton
         RunReport.BeforeFinish = null;
         segment?.Dispose();
         RunReport.CloseBatch(record, batch.Plan, batch.Diagnostic, reason);
+        RunTimeline.Event("batch-end", batch.Id, detail: reason);
         record.GameHours = ctx.Hours - batchStartHours;
         record.WallSeconds = Time.realtimeSinceStartup - batchStartRealtime;
         try { Harness.Settings?.OnBatchEnd(); }
