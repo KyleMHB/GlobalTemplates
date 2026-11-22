@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>TimberbornDevTests</AssemblyName>
+    <RootNamespace>TimberbornDevTests</RootNamespace>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Harness\**\*.cs" />
+  </ItemGroup>
+  <Import Project="TimberbornDevTests.props" />
+</Project>
