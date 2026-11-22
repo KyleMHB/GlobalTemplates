@@ -44,7 +44,9 @@ RUNNER_BUILD = HARNESS_ROOT / "bin/Release/TimberbornDevTests.dll"
 RUNNER_FOLDER = RUNNER_ID = "TimberbornDevTests"
 PREFS_KEY = r"Software\Mechanistry\Timberborn"
 # The player's data a run must not touch. Steam rewrites steam_autocloud.vdf in synced folders on every launch.
-PROTECTED_FOLDERS = ("Saves", "ExperimentalSaves", "Maps", "BuildingBlueprints", "PlayerData")
+# PlayerData is left out: mods write their own files there at load (seen in the spike's non-isolated run), so it would flag
+# every run that loads such a mod.
+PROTECTED_FOLDERS = ("Saves", "ExperimentalSaves", "Maps")
 IGNORED_CHANGES = ("steam_autocloud.vdf",)
 # Launcher-side run files: a run folder holding only these is a run whose game never reported.
 LAUNCHER_FILES = ("launcher.json", "heartbeat.json")

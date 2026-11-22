@@ -34,6 +34,8 @@ public class GameRunner : ILoadableSingleton, IUpdatableSingleton
     private int settleFrames;
     private float startDay, startRealtime;
     private int beaversAtStart;
+    // Whether game time kept advancing while the window was in the background at some point (SPEC open risk).
+    private bool wasUnfocused;
 
     public GameRunner(EventBus eventBus, Autosaver autosaver, SpeedManager speedManager, IDayNightCycle dayNightCycle,
         BeaverPopulation beaverPopulation)
@@ -94,6 +96,7 @@ public class GameRunner : ILoadableSingleton, IUpdatableSingleton
     // proves the launch, the main-menu start and the in-game hooks work, and whether ticks run while the window is unfocused.
     private void RunSmoke()
     {
+        if (!Application.isFocused) wasUnfocused = true;
         float hours = (dayNightCycle.PartialDayNumber - startDay) * 24f;
         if (hours < Runner.Request.GameHours) return;
         step = Step.Done;
@@ -106,7 +109,7 @@ public class GameRunner : ILoadableSingleton, IUpdatableSingleton
             requestedSpeed = Runner.Request.Speed,
             beaversAtStart,
             beaversAtEnd = beaverPopulation.NumberOfBeavers,
-            focused = Application.isFocused,
+            wasUnfocused,
             exceptions = RunReport.ExceptionCount,
         };
         string reason = beaversAtStart == 0 ? "the new game started without beavers"
