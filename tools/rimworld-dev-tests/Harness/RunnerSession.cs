@@ -24,6 +24,7 @@ internal static class RunnerSession
         public int Seed = 1;
         public long DeadlineUtcMs = 0;
         public List<string> Cases = null;
+        public int ConcurrentGames = 0;
     }
 
     public static void Read()
@@ -79,7 +80,7 @@ internal static class RunnerSession
         }
         if (request.Command != "run" || string.IsNullOrEmpty(request.RunId) || Path.GetFileName(request.RunId) != request.RunId) return;
         var run = new RunRequest { Batch = request.Batch, Seed = request.Seed, Origin = "session", DeadlineUtcMs = request.DeadlineUtcMs,
-            Cases = request.Cases ?? new() };
+            Cases = request.Cases ?? new(), ConcurrentGames = request.ConcurrentGames };
         if (!idle)
         {
             LaunchArguments.WriteRefusal(run, "session is no longer idle at the main menu", request.RunId);

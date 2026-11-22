@@ -58,7 +58,9 @@ Exit codes: 0 pass, 1 failures or isolation breach, 2 timeout, interrupted run, 
 
 `--quit-on-finish` runs a fresh process that exits after the batch. `--keep-open` leaves a fresh process paused at completion until you close it. `install-dev` installs both DLLs and a marker file for Dev mode > Debug actions > Developer tests. Close the game and use `remove-dev` afterwards.
 
-The launcher refuses unrelated games and mismatched installed files. It installs both developer DLLs, checks user saves and autosave preferences, and removes the DLLs on `close-session` or fresh-process completion. If the launcher is stopped before it can remove them, the DLLs stay in the mod folder but do nothing in a game the launcher did not start; the next run or `remove-dev` removes them. Runtime manifests exclude both developer DLLs; separate hashes identify them. `release-check` rejects any DevTests DLL or marker in the target package, and fails unless the mod's production DLL in that package passed the `perf` batch and every `perf.*` timing case the mod defines. It warns when the mod defines none (see [Perf](docs/recipes/perf.md)).
+Several mods' tests can run at once, each in its own game: up to `maxGames` in `rimtest.local.json` (default 3, about 1.5 GB of memory each with a small mod set). Leases are per installed mod, so only checkouts of the same mod take turns. A run waits for a free game slot until its `--timeout`; idle sessions keep their slot until `close-session`. Two games never load each other's mod, and the `perf` batch, the `perf` set and `--record` runs wait until no other game is running a batch, since load from other games skews timings and captures. A run's summary says how many other test games were running when it started. `status` lists them.
+
+The launcher refuses a RimWorld it did not start, and mismatched installed files. It installs both developer DLLs, checks user saves and autosave preferences, and removes the DLLs on `close-session` or fresh-process completion. If the launcher is stopped before it can remove them, the DLLs stay in the mod folder but do nothing in a game the launcher did not start; the next run or `remove-dev` removes them. Runtime manifests exclude both developer DLLs; separate hashes identify them. `release-check` rejects any DevTests DLL or marker in the target package, and fails unless the mod's production DLL in that package passed the `perf` batch and every `perf.*` timing case the mod defines. It warns when the mod defines none (see [Perf](docs/recipes/perf.md)).
 
 ## Shared behavior and limits
 
@@ -68,7 +70,7 @@ Every run counts the errors the game logged, in total and those naming the mod u
 
 Every run also reports errors naming the mod that were logged while the game loaded, before the process's first run, such as a bad def or a patch that failed. The summary prints a `Startup:` line with the first five, and `report.json` lists them in `startupModErrors`. Under `FailOnModErrors` they fail the run too. The game keeps only its newest 1000 log messages, so when the log was already full the summary says startup was not checked; run in a fresh launch.
 
-Each run folder also keeps a copy of `Player.log`. The harness's copy of `Prefs.xml` keeps the player's display settings but always uses English and a one-day autosave interval.
+Each run folder also keeps a copy of `Player.log`. Every game on the machine writes that one file and replaces it at launch, so when another test game launched after this one the copy is skipped and `Player.log.txt` says so. The harness's copy of `Prefs.xml` keeps the player's display settings but always uses English and a one-day autosave interval.
 
 World and colony creation use the requested seed. Simulation after map generation is not deterministically seeded. Passing cases establish only their measured behavior. The caller manages any temporary mod-list change and restores it afterwards.
 

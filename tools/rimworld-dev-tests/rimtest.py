@@ -6,9 +6,15 @@ Configured per mod by a devtests.json file:
   python rimtest.py --config ... close-session | latest [--batch B] | timings [run] | list | self-check | prune [--keep N] | release-check [mod_dir] | install-dev | remove-dev
   python rimtest.py --config ... status | lease take|release [--purpose P] | frames [run] [--at 3,8,14 | --count N]
 
-Install lease: run, self-check, install-dev and a mod's deploy script (via `lease take`) claim work/install-lease.json for the
-checkout; close-session releases it. Another checkout is refused until then, or until the lease sits unused for 30 minutes
-with the game closed. `status` shows the holder, the game process and whether the installed mod matches this checkout.
+Install lease: run, self-check, install-dev and a mod's deploy script (via `lease take`) claim the installed mod folder for the
+checkout (%LOCALAPPDATA%/RimWorldDevTests/leases); close-session releases it. Another checkout of the same mod is refused until
+then, or until the lease sits unused for 30 minutes with that mod's game closed. Different mods hold different leases.
+
+Parallel games: several mods' tests run at once, each in its own game. A per-user registry (%LOCALAPPDATA%/RimWorldDevTests/
+games.json) records every game a launcher started; up to maxGames (rimtest.local.json, default 3) run at once, and a run waits
+for a free slot until its --timeout. Idle sessions keep their slot until close-session. Two games never load each other's mod,
+since both harness DLLs would load in one process. The perf batch and recorded runs wait until no other game is running a batch,
+and other runs wait while one of those runs. `status` shows this mod's lease and game and every other test game.
 
 `run` reuses an idle launcher-owned RimWorld session at the main menu, or launches one, and sends the batch to it. The game
 window stays open with the progress panel; finish with close-session, which also removes the DevTests DLL. Several batches
@@ -24,7 +30,7 @@ is closed and relaunched. Optional per-set mod settings: <mod>/DevTests/modsetti
 Every launch runs in English unless run is given --language (Russian, ChineseSimplified, ...); an idle session in another
 language is relaunched, and a run whose game loaded a different language fails.
 
-Every run refuses while an unrelated RimWorld is open or while the installed mod differs from the working tree, enforces a
+Every run refuses while a RimWorld the launcher did not start is open or while the installed mod differs from the working tree, enforces a
 wall-clock limit, and checks that no user save, autosave setting or the player's ModsConfig changed and the loaded build matches.
 The game is told the limit and closes the run with a report shortly before it; a game that does not respond is killed.
 Exit codes: 0 pass, 1 failures or isolation breach, 2 timeout, interrupted run, failed startup or no report, 3 refusal,
@@ -387,7 +393,9 @@ def session_mods(config):
 
 
 def restart_hint(config):
-    if process_running(config.process_name):
+    with registry_lock():
+        unrelated = unrelated_games(read_registry())
+    if unrelated:
         print("RimWorld relaunched itself while loading (a mod such as Load Them Last rewrote the load order). Close that "
               "game, fix the set's order in devtests.json, and run again.")
 
@@ -416,11 +424,6 @@ def preflight(config):
     if not all(p.is_file() for p in config.developer_builds):
         raise RuntimeError(f"build DevTests first: dotnet build {config.dev_project} -c Release")
     return {"schema": 1, "runtimeHash": manifest_hash(candidate), "files": candidate, "developerHash": sha256(config.dev_build), "harnessHash": sha256(config.harness_build)}
-
-
-def process_running(name):
-    listing = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH"], capture_output=True, text=True, check=False).stdout
-    return name.lower() in listing.lower()
 
 
 def snapshot_saves(saves_dir):
@@ -500,8 +503,31 @@ def print_summary(run_dir, manifest):
         print(summary.read_text(encoding="utf-8"))
 
 
+def player_log_owner(config):
+    """The -savedatafolder on Player.log's Command line. Every game on the machine writes the one file and replaces it at launch,
+    so with several test games running it belongs to whichever launched last (observed 2026-11-22, 1.7.5014)."""
+    try:
+        with config.player_log.open("r", encoding="utf-8", errors="replace") as log:
+            head = log.read(8192)
+    except OSError:
+        return None
+    match = re.search(r"^Command:.*?-savedatafolder=(.+?)(?:\s+-\w|$)", head, re.MULTILINE)
+    return match.group(1).strip().strip('"') if match else None
+
+
+def owns_player_log(config):
+    owner = player_log_owner(config)
+    return owner is not None and same_path(owner, config.userdata)
+
+
 def keep_player_log(config, run_dir):
-    """The engine writes one Player.log for every game, replaced at the next launch; keep this run's (its tail when huge)."""
+    """Keep this game's Player.log (its tail when huge), but not one that another game has since replaced."""
+    if not owns_player_log(config):
+        note = f"Player.log was not copied: another game launched after this one and replaced it (now {player_log_owner(config)})."
+        print(note)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "Player.log.txt").write_text(note + "\n", encoding="utf-8")
+        return
     try:
         with config.player_log.open("rb") as source:
             source.seek(max(0, config.player_log.stat().st_size - LOG_KEEP_BYTES))
@@ -552,7 +578,10 @@ def startup_hint(config):
 
 def print_diagnostics(config, run_dir):
     print(f"Progress file {run_dir / 'progress.json'}:\n{tail(run_dir / 'progress.json')}")
-    print(f"Last {LOG_TAIL_LINES} lines of {config.player_log}:\n{tail(config.player_log)}")
+    if owns_player_log(config):
+        print(f"Last {LOG_TAIL_LINES} lines of {config.player_log}:\n{tail(config.player_log)}")
+    else:
+        print(f"{config.player_log} belongs to another game launched since ({player_log_owner(config)}), so its lines are not this run's.")
 
 
 def new_run_id(batch, seed, cases=None):
@@ -717,8 +746,9 @@ def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, gra
     selection = select_mods(config, batch, mod_set)
     production_hash, developer_hash = sha256(config.production_dll), manifest["developerHash"]
     deadline = time.monotonic() + timeout
+    exclusive = batch == "perf" or selection.name in EXCLUSIVE_SETS
     reuse = False
-    if process_running(config.process_name):
+    if own_game_open(config):
         status = session_status(config)
         if not status or time.time() * 1000 - status["heartbeat"] > 10000:
             raise RuntimeError("RimWorld is open without a responsive launcher session; leave that game untouched and close it before running batches")
@@ -742,6 +772,16 @@ def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, gra
             print(f"The open session loaded mod set {(loaded or {}).get('set', 'unknown')!r} in {(loaded or {}).get('language', 'an unknown language')}; "
                   f"relaunching with {selection.name!r} in {config.language}.")
             _close_session(config)
+    concurrent = claim_game(config, selection.mods, exclusive, launching=not reuse, deadline=deadline)
+    try:
+        return _run_claimed(config, batch, seed, timeout, startup_timeout, graceful, manifest, saves_before, prefs_before, selection,
+                            deadline, reuse, token if reuse else None, process if reuse else None, concurrent)
+    finally:
+        release_game(config)
+
+
+def _run_claimed(config, batch, seed, timeout, startup_timeout, graceful, manifest, saves_before, prefs_before, selection, deadline,
+                 reuse, token, process, concurrent):
     if not reuse:
         prepare_userdata(config, selection)
         clear_session(config)
@@ -751,10 +791,10 @@ def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, gra
         (config.evidence_root / "session-mods.json").write_text(json.dumps(session_identity(config, selection), indent=2), encoding="utf-8")
         try:
             launched = subprocess.Popen(config.launch_command() + [config.arg("Session", token)])
+            register_launch(config, launched.pid)
             process = SessionProcess(launched.pid)
         except OSError:
-            if not process_running(config.process_name):
-                clear_session(config)
+            clear_session(config)
             raise
         print("Launched a reusable RimWorld runner session.")
     run_id = new_run_id(batch, seed, config.cases) + "-" + uuid.uuid4().hex[:8]
@@ -765,7 +805,7 @@ def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, gra
         wait_session(config, process, token, deadline, startup_limit=0 if reuse else startup_timeout)
         print(f"Run {run_id}: evidence {run_dir}", flush=True)
         send_session_request(config, token, "run", RunId=run_id, Batch=batch, Seed=seed, DeadlineUtcMs=game_deadline(deadline, graceful),
-                             Cases=config.cases)
+                             Cases=config.cases, ConcurrentGames=concurrent)
         while process.alive():
             if summary_path.is_file():
                 report = json.loads(report_path.read_text(encoding="utf-8"))
@@ -817,7 +857,7 @@ def result_code(report, problems, recording_error=None):
 def close_session(config):
     try:
         with session_lock(config):
-            if not process_running(config.process_name):
+            if not own_game_open(config):
                 clear_session(config)
                 print("RimWorld is closed; removed DevTests and stale session files.")
                 return 0
@@ -847,25 +887,260 @@ def _close_session(config):
         process.close()
 
 
-# ---- Install lease: one checkout at a time owns the installed mod and the game ------------------------------------------
-# session_lock covers a single launcher command. The lease covers the whole loop (deploy, runs, close-session), so another
-# checkout or worktree cannot deploy over a tree under test or launch between two of its runs. It names the holder's checkout
-# so a refused agent knows whom it is waiting for, instead of polling processes and messaging other sessions.
+# ---- Game registry: the harness games running on this machine -----------------------------------------------------------
+# Several mods' tests can run at once, each in its own game with its own -savedatafolder. The registry records every game a
+# launcher started, so a RimWorld that is not in it (the player's own) still refuses a run: an autosave there would read as an
+# isolation breach, and it may hold the mod's DLLs. It lives per user, outside any checkout, so worktrees share it. Each entry
+# also says whether a launcher command is using that game right now ("busy"), which the slot limit and exclusive runs read.
 
-LEASE_PATH = HARNESS_ROOT / "work" / "install-lease.json"
-LEASE_IDLE_MINUTES = 30  # an untouched lease with no game running is abandoned
+STATE_ROOT = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData/Local") / "RimWorldDevTests"
+REGISTRY_PATH = STATE_ROOT / "games.json"
+LEASE_DIR = STATE_ROOT / "leases"
+DEFAULT_MAX_GAMES = 3
+# Runs that time things or capture the window: other games' load skews them, so they wait until no other game is busy.
+EXCLUSIVE_SETS = ("perf",)
+RESERVATION_SECONDS = 120  # a slot reserved for a launch that never registered is freed after this
 
 
-def read_lease():
+def max_games():
+    """maxGames in rimtest.local.json, else DEFAULT_MAX_GAMES."""
+    local = HARNESS_ROOT / "rimtest.local.json"
+    if local.exists():
+        value = json.loads(local.read_text(encoding="utf-8")).get("maxGames")
+        if isinstance(value, int) and value >= 1:
+            return value
+    return DEFAULT_MAX_GAMES
+
+
+def process_created(pid):
+    """The process's creation time, or None when it has exited; with the pid it names one process even after pid reuse."""
+    from ctypes import wintypes
+    if not pid:
+        return None
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    api.OpenProcess.restype = wintypes.HANDLE
+    api.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    api.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+    api.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = api.OpenProcess(0x1000 | 0x100000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE
+    if not handle:
+        return None
     try:
-        return json.loads(LEASE_PATH.read_text(encoding="utf-8"))
+        if api.WaitForSingleObject(handle, 0) != 258:  # signalled: exited
+            return None
+        times = [wintypes.FILETIME() for _ in range(4)]
+        if not api.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]):
+            return None
+        return (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+    finally:
+        api.CloseHandle(handle)
+
+
+def rimworld_pids():
+    listing = subprocess.run(["tasklist", "/FI", "IMAGENAME eq RimWorld.exe", "/FO", "CSV", "/NH"],
+                             capture_output=True, text=True, check=False).stdout
+    return [int(row[1]) for row in (line.split('","') for line in listing.splitlines()) if len(row) > 1 and row[1].isdigit()]
+
+
+def same_path(a, b):
+    return os.path.normcase(os.path.normpath(str(a))) == os.path.normcase(os.path.normpath(str(b)))
+
+
+@contextmanager
+def registry_lock():
+    import msvcrt
+    STATE_ROOT.mkdir(parents=True, exist_ok=True)
+    # Byte 0 is locked whether or not the file holds it, so the file stays empty: reading a byte another process has locked fails
+    # with EACCES on Windows.
+    with (STATE_ROOT / "games.lock").open("a+b") as lock:
+        deadline = time.monotonic() + 30
+        while True:
+            lock.seek(0)
+            try:
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(f"another launcher held {STATE_ROOT / 'games.lock'} for 30 s")
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def live(entry):
+    """Drop exited games and abandoned reservations; clear a busy mark whose launcher has exited."""
+    if entry.get("pid"):
+        if process_created(entry["pid"]) != entry.get("created"):
+            return None
+    elif time.time() - entry.get("reserved", 0) > RESERVATION_SECONDS or process_created(entry.get("launcher")) != entry.get("launcherCreated"):
+        return None
+    if entry.get("busy") and process_created(entry["busy"]) != entry.get("busyCreated"):
+        entry.update(busy=None, busyCreated=None, exclusive=False)
+    return entry
+
+
+def read_registry():
+    """Live entries; the caller holds registry_lock."""
+    try:
+        entries = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        entries = []
+    return [e for e in (live(e) for e in entries) if e]
+
+
+def write_registry(entries):
+    STATE_ROOT.mkdir(parents=True, exist_ok=True)
+    temp = REGISTRY_PATH.with_suffix(".tmp")
+    temp.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    temp.replace(REGISTRY_PATH)
+
+
+def own_entry(config, entries):
+    return next((e for e in entries if same_path(e["userdata"], config.userdata)), None)
+
+
+def adopt_session(config, entries):
+    """Register this mod's open session when an older launcher started it, so it is not taken for an unrelated game."""
+    if own_entry(config, entries):
+        return
+    status = session_status(config)
+    created = process_created(status.get("pid")) if status else None
+    if created:
+        entries.append({"pid": status["pid"], "created": created, "mod": config.name, "checkout": str(config.root.resolve()),
+                        "userdata": str(config.userdata), "packageId": config.package_id, "mods": session_mods(config) and
+                        session_mods(config).get("mods") or [], "busy": None, "busyCreated": None, "exclusive": False})
+
+
+def unrelated_games(entries):
+    known = {e["pid"] for e in entries if e.get("pid")}
+    return [pid for pid in rimworld_pids() if pid not in known]
+
+
+def own_game_open(config):
+    with registry_lock():
+        entries = read_registry()
+        adopt_session(config, entries)
+        write_registry(entries)
+        entry = own_entry(config, entries)
+        return bool(entry and entry.get("pid"))
+
+
+def describe_game(entry):
+    state = "busy" + (", exclusive" if entry.get("exclusive") else "") if entry.get("busy") else "idle" if entry.get("pid") else "starting"
+    return f"{entry['mod']} ({state}, {entry['checkout']})"
+
+
+def blockers(config, entries, mods, exclusive, launching):
+    others = [e for e in entries if not same_path(e["userdata"], config.userdata)]
+    found = []
+    if launching and len(others) >= max_games():
+        found.append(f"all {max_games()} test game slots are in use (maxGames in rimtest.local.json): "
+                     + "; ".join(describe_game(e) for e in others) + ". Idle sessions keep their slot until their checkout runs close-session")
+    package = config.package_id.lower()
+    for e in others:
+        if package and package in [m.lower() for m in e.get("mods", [])] or e.get("packageId", "").lower() in [m.lower() for m in mods]:
+            found.append(f"{describe_game(e)} loads this mod, or this run loads that one; two harness DLLs cannot share a game")
+    if exclusive:
+        found += [f"{describe_game(e)} is running a batch; perf and recorded runs wait for other games to finish" for e in others if e.get("busy")]
+    else:
+        found += [f"{describe_game(e)} is running a perf or recorded batch, which needs the machine to itself" for e in others if e.get("exclusive")]
+    return found
+
+
+def claim_game(config, mods, exclusive, launching, deadline):
+    """Wait until this command may use (or launch) its game, then mark it busy, or reserve a slot for the launch. Returns the
+    number of other harness games running. RuntimeError for an unrelated RimWorld, or when the wait outlives the deadline."""
+    me, my_created = os.getpid(), process_created(os.getpid())
+    shown = None
+    while True:
+        with registry_lock():
+            entries = read_registry()
+            adopt_session(config, entries)
+            unrelated = unrelated_games(entries)
+            if unrelated:
+                write_registry(entries)
+                raise RuntimeError(f"RimWorld is open outside the test launcher (pid {', '.join(map(str, unrelated))}); leave that game "
+                                   "untouched and close it before running batches")
+            found = blockers(config, entries, mods, exclusive, launching)
+            if not found:
+                entry = own_entry(config, entries)
+                if entry is None or launching:
+                    entries = [e for e in entries if e is not entry]
+                    entry = {"pid": None, "created": None, "reserved": time.time(), "launcher": me, "launcherCreated": my_created,
+                             "mod": config.name, "checkout": str(config.root.resolve()), "userdata": str(config.userdata),
+                             "packageId": config.package_id}
+                    entries.append(entry)
+                entry.update(mods=list(mods), busy=me, busyCreated=my_created, exclusive=exclusive)
+                write_registry(entries)
+                return len(entries) - 1
+            write_registry(entries)
+        if time.monotonic() >= deadline:
+            raise RuntimeError("waited for a test game until the timeout: " + " | ".join(found))
+        if found != shown:
+            print("Waiting: " + " | ".join(found), flush=True)
+            shown = found
+        time.sleep(2)
+
+
+def register_launch(config, pid):
+    with registry_lock():
+        entries = read_registry()
+        entry = own_entry(config, entries)
+        if entry is None:
+            raise RuntimeError("the reserved game slot expired before the game started")
+        entry.update(pid=pid, created=process_created(pid), reserved=None)
+        write_registry(entries)
+
+
+def release_game(config):
+    """End this command's use of its game: an open session stays registered as idle; a reservation or exited game is dropped."""
+    with registry_lock():
+        entries = read_registry()
+        entry = own_entry(config, entries)
+        if entry and not entry.get("pid"):
+            entries.remove(entry)
+        elif entry:
+            entry.update(busy=None, busyCreated=None, exclusive=False)
+        write_registry(entries)
+
+
+def other_games(config):
+    with registry_lock():
+        return [e for e in read_registry() if not same_path(e["userdata"], config.userdata)]
+
+
+# ---- Install lease: one checkout at a time owns an installed mod ----------------------------------------------------------
+# session_lock covers a single launcher command. The lease covers the whole loop (deploy, runs, close-session), so another
+# checkout or worktree of the same mod cannot deploy over a tree under test or launch between two of its runs. Leases are per
+# installed mod folder: different mods run side by side. It names the holder's checkout so a refused agent knows whom it is
+# waiting for, instead of polling processes and messaging other sessions.
+
+LEASE_IDLE_MINUTES = 30  # an untouched lease whose mod has no game open is abandoned
+
+
+def lease_path(config):
+    key = re.sub(r"[^a-z0-9]+", "-", os.path.normcase(os.path.normpath(str(config.mod_dir))).lower()).strip("-")
+    return LEASE_DIR / f"{key}.json"
+
+
+def read_lease(config):
+    try:
+        return json.loads(lease_path(config).read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
 
 def lease_stale(lease):
-    idle = time.time() - lease.get("touched", 0) > LEASE_IDLE_MINUTES * 60
-    return not Path(lease["holder"]).is_dir() or (idle and not process_running("RimWorld.exe"))
+    if not Path(lease["holder"]).is_dir():
+        return True
+    if time.time() - lease.get("touched", 0) <= LEASE_IDLE_MINUTES * 60:
+        return False
+    with registry_lock():
+        return not any(e.get("pid") and same_path(e["userdata"], lease.get("userdata", "")) for e in read_registry())
 
 
 def describe_lease(lease):
@@ -876,24 +1151,25 @@ def describe_lease(lease):
 def take_lease(config, purpose):
     """Claim or refresh the lease for this checkout; RuntimeError names the other holder."""
     holder = str(config.root.resolve())
-    lease = read_lease()
+    lease = read_lease(config)
     if lease and lease["holder"] != holder and not lease_stale(lease):
-        raise RuntimeError(f"the RimWorld install is leased to {describe_lease(lease)}. Wait until that checkout runs "
-                           f"close-session, or until it sits unused for {LEASE_IDLE_MINUTES} min with the game closed. "
+        raise RuntimeError(f"the installed {config.name} is leased to {describe_lease(lease)}. Wait until that checkout runs "
+                           f"close-session, or until it sits unused for {LEASE_IDLE_MINUTES} min with its game closed. "
                            "`status` shows the holder.")
     now = time.time()
     since = lease["since"] if lease and lease["holder"] == holder else now
-    LEASE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    temp = LEASE_PATH.with_suffix(".tmp")
-    temp.write_text(json.dumps({"holder": holder, "mod": config.name, "purpose": purpose, "since": since, "touched": now}),
-                    encoding="utf-8")
-    temp.replace(LEASE_PATH)
+    path = lease_path(config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps({"holder": holder, "mod": config.name, "modDir": str(config.mod_dir), "userdata": str(config.userdata),
+                                "purpose": purpose, "since": since, "touched": now}), encoding="utf-8")
+    temp.replace(path)
 
 
 def release_lease(config):
-    lease = read_lease()
+    lease = read_lease(config)
     if lease and lease["holder"] == str(config.root.resolve()):
-        LEASE_PATH.unlink(missing_ok=True)
+        lease_path(config).unlink(missing_ok=True)
         return True
     return False
 
@@ -907,19 +1183,29 @@ def lease_command(config, action, purpose):
     except RuntimeError as error:
         print("REFUSED:", error)
         return 3
-    print(f"This checkout holds the install lease ({purpose}).")
+    print(f"This checkout holds the install lease for {config.name} ({purpose}).")
     return 0
 
 
 def status(config):
-    lease = read_lease()
+    lease = read_lease(config)
     if not lease:
-        print("Lease: free.")
+        print(f"Lease ({config.name}): free.")
     else:
         mine = lease["holder"] == str(config.root.resolve())
         state = "this checkout" if mine else "stale, free to take" if lease_stale(lease) else "another checkout"
-        print(f"Lease: {state}: {describe_lease(lease)}")
-    print(f"RimWorld: {'running' if process_running(config.process_name) else 'closed'}.")
+        print(f"Lease ({config.name}): {state}: {describe_lease(lease)}")
+    with registry_lock():
+        entries = read_registry()
+        adopt_session(config, entries)
+        write_registry(entries)
+        unrelated = unrelated_games(entries)
+    mine = own_entry(config, entries)
+    print(f"RimWorld ({config.name}): {'running' if mine and mine.get('pid') else 'closed'}.")
+    others = [e for e in entries if e is not mine]
+    print(f"Other test games: {'none' if not others else '; '.join(describe_game(e) for e in others)} (limit {max_games()}).")
+    if unrelated:
+        print(f"RimWorld outside the launcher: pid {', '.join(map(str, unrelated))}; runs refuse until it closes.")
     session = session_status(config)
     if session:
         age = time.time() - session.get("heartbeat", 0) / 1000
@@ -959,13 +1245,29 @@ def frames(config, run=None, at=None, count=6, ffmpeg=None):
 # ---- Single fresh process -----------------------------------------------------------------------------------------------
 
 def run_once(config, batch, seed, timeout, keep_open=False, record=False, ffmpeg=None, show_ui=False, mod_set=None, startup_timeout=300):
-    if process_running(config.process_name):
-        print(f"REFUSED: {config.process_name} is already running. Close it, or use run without --quit-on-finish to reuse a runner session.")
-        return 3
     try:
+        if own_game_open(config):
+            print(f"REFUSED: this mod's runner session is open. Use close-session first, or run without --quit-on-finish to reuse it.")
+            return 3
         manifest, saves_before, prefs_before = snapshot(config)
         check_batch(config, batch, manifest)
-        prepare_userdata(config, select_mods(config, batch, mod_set))
+        selection = select_mods(config, batch, mod_set)
+        concurrent = claim_game(config, selection.mods, record or batch == "perf" or selection.name in EXCLUSIVE_SETS, launching=True,
+                                deadline=time.monotonic() + timeout)
+    except (OSError, ValueError, RuntimeError, ET.ParseError) as error:
+        print("REFUSED:", error)
+        return 3
+    try:
+        return _run_once_claimed(config, batch, seed, timeout, keep_open, record, ffmpeg, show_ui, startup_timeout, manifest,
+                                 saves_before, prefs_before, selection, concurrent)
+    finally:
+        release_game(config)
+
+
+def _run_once_claimed(config, batch, seed, timeout, keep_open, record, ffmpeg, show_ui, startup_timeout, manifest, saves_before,
+                      prefs_before, selection, concurrent):
+    try:
+        prepare_userdata(config, selection)
         clear_session(config)  # a fresh process shares the folder; drop any stale session files
         if record:
             ffmpeg = find_ffmpeg(ffmpeg)
@@ -987,7 +1289,9 @@ def run_once(config, batch, seed, timeout, keep_open=False, record=False, ffmpeg
                                    + ([config.arg("Cases", ",".join(config.cases))] if config.cases else [])
                                    + ([config.arg("KeepOpen", "true")] if keep_open else [])
                                    + ([config.arg("Record", "true")] if record else [])
-                                   + ([config.arg("ShowUI", "true")] if show_ui else []))
+                                   + ([config.arg("ShowUI", "true")] if show_ui else [])
+                                   + ([config.arg("ConcurrentGames", concurrent)] if concurrent else []))
+        register_launch(config, process.pid)
         while process.poll() is None:
             if recording:
                 recording.poll()

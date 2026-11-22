@@ -48,6 +48,9 @@ public class RunRequest
     // Case filter (--case): full case ids or globs with * and ?. Empty runs every case. Batches still run their code; only those
     // that check BatchContext.Selected skip the work of unselected cases.
     public List<string> Cases = new();
+    // Other harness games running when the launcher sent this run (rimtest.py's game registry). Timing-sensitive checks read
+    // differently under contention; the launcher keeps perf and recorded runs to themselves.
+    public int ConcurrentGames;
 
     public bool Filtered => Cases is { Count: > 0 };
     public bool Selects(string id) => !Filtered || Cases.Any(p => Regex.IsMatch(id,
@@ -216,6 +219,7 @@ public class Progress
         text.AppendLine($"Request: {string.Join(", ", Request.Batches)} seed {Request.Seed} ({Request.Origin})");
         // A JsonElement once the progress file is reloaded, so read it as text.
         if (Environment.GetValueOrDefault("language")?.ToString() is { Length: > 0 } language) text.AppendLine("Language: " + language);
+        if (Request.ConcurrentGames > 0) text.AppendLine($"Other test games running: {Request.ConcurrentGames} (timings and real-time checks may read slower)");
         int notSelected = Cases.Count(c => c.CoverageReason == CoverageReasons.NotSelected);
         if (Request.Filtered)
             text.AppendLine($"FILTERED by --case {string.Join(" ", Request.Cases)}: {notSelected} planned case(s) not selected; not a full batch run");

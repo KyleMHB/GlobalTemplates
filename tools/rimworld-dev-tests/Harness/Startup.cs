@@ -215,7 +215,8 @@ public static class LaunchArguments
             HideUI = !GenCommandLine.TryGetCommandLineArg(p + "ShowUI", out string showUI) || showUI != "true",
             KeepOpen = GenCommandLine.TryGetCommandLineArg(p + "KeepOpen", out string keepOpen) && keepOpen == "true",
             DeadlineUtcMs = GenCommandLine.TryGetCommandLineArg(p + "Deadline", out string deadline) && long.TryParse(deadline, out long ms) ? ms : 0,
-            Cases = GenCommandLine.TryGetCommandLineArg(p + "Cases", out string cases) ? cases.Split(',').Where(c => c.Length > 0).ToList() : new() };
+            Cases = GenCommandLine.TryGetCommandLineArg(p + "Cases", out string cases) ? cases.Split(',').Where(c => c.Length > 0).ToList() : new(),
+            ConcurrentGames = GenCommandLine.TryGetCommandLineArg(p + "ConcurrentGames", out string others) && int.TryParse(others, out int otherGames) ? otherGames : 0 };
     }
 
     public static void TryStart()
