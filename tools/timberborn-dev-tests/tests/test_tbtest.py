@@ -238,6 +238,101 @@ class ReleaseCheckTest(TempCase):
         ])
 
 
+class PerfRuleTest(TempCase):
+    """release-check against a fabricated package and run folders. Runs are ordered by their files' mtime, as real ones are."""
+
+    def setUp(self):
+        super().setUp()
+        self.stamp = 1000
+        self.package = self.root / "Package"
+        self.write("Package/version-1.1/manifest.json", json.dumps({"Id": "My.Mod"}))
+        self.write("Package/version-1.1/MyMod.dll", "build 1")
+        self.batches = [{"id": "speed", "diagnostic": False, "cases": ["perf.place-many", "speed.correct"]},
+                        {"id": "diagnostic", "diagnostic": True, "cases": ["perf.runner-only"]}]
+
+    def fake_run(self, name, cases, mod_id="My.Mod", dlls=None, batches=None):
+        """A run folder as run() leaves it: launcher.json (mod under test and the measured DLLs), report.json, batches.json."""
+        import os
+        folder = self.root / "runs" / name
+        build = tbtest.mod_build(self.package) if dlls is None else dlls
+        files = {"launcher.json": {"runId": name, "modUnderTest": mod_id, "modBuild": build},
+                 "report.json": {"cases": [{"Id": i, "Result": r, "Reason": None if r == "pass" else "too slow"} for i, r in cases]},
+                 "batches.json": {"modName": "My Mod", "batches": self.batches if batches is None else batches}}
+        for file, data in files.items():
+            path = self.write(f"runs/{name}/{file}", json.dumps(data))
+            os.utime(path, (self.stamp, self.stamp))
+        self.stamp += 10
+        return folder
+
+    def check(self):
+        import contextlib, io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = tbtest.release_check(self.package, None, None, evidence_root=self.root / "runs")
+        return code, out.getvalue().splitlines()
+
+    def test_a_passing_perf_case_on_the_packaged_dll_passes(self):
+        self.fake_run("run-1", [("perf.place-many", "pass"), ("speed.correct", "pass")])
+        code, lines = self.check()
+        self.assertEqual(code, 0)
+        self.assertIn("PASS: perf perf.place-many in run run-1", lines)
+        self.assertFalse([l for l in lines if l.startswith(("FAIL", "WARN"))])
+
+    def test_no_run_of_a_perf_case_fails(self):
+        self.fake_run("run-1", [("speed.correct", "pass")])
+        code, lines = self.check()
+        self.assertEqual(code, 1)
+        self.assertIn("FAIL: no run of perf.place-many; run speed", lines)
+
+    def test_the_newest_run_of_a_case_decides(self):
+        self.fake_run("run-1", [("perf.place-many", "pass")])
+        self.fake_run("run-2", [("perf.place-many", "fail")])
+        code, lines = self.check()
+        self.assertEqual(code, 1)
+        self.assertIn("FAIL: perf.place-many in run run-2 did not pass (fail): too slow", lines)
+
+    def test_a_skipped_perf_case_is_not_a_pass(self):
+        self.fake_run("run-1", [("perf.place-many", "skip")])
+        self.assertEqual(self.check()[0], 1)
+
+    def test_a_run_of_a_different_build_fails(self):
+        self.fake_run("run-1", [("perf.place-many", "pass")])
+        self.write("Package/version-1.1/MyMod.dll", "build 2")
+        code, lines = self.check()
+        self.assertEqual(code, 1)
+        self.assertIn("FAIL: newest perf.place-many run run-1 measured a different build of My.Mod; run speed", lines)
+
+    def test_a_devtests_dll_beside_the_mod_during_the_run_still_matches_the_clean_package(self):
+        build = tbtest.mod_build(self.package)
+        self.write("Package/MyMod.DevTests.dll", "dev")
+        self.assertEqual(tbtest.mod_build(self.package), build)
+
+    def test_another_mods_newer_run_is_ignored(self):
+        self.fake_run("run-1", [("perf.place-many", "pass")])
+        self.fake_run("run-2", [("perf.place-many", "fail")], mod_id="Other.Mod", dlls={"hash": "other", "dlls": {}})
+        code, lines = self.check()
+        self.assertEqual(code, 0)
+        self.assertIn("PASS: perf perf.place-many in run run-1", lines)
+
+    def test_no_perf_cases_warns_without_failing(self):
+        self.fake_run("run-1", [("speed.correct", "pass")], batches=[{"id": "speed", "diagnostic": False, "cases": ["speed.correct"]}])
+        code, lines = self.check()
+        self.assertEqual(code, 0)
+        self.assertTrue([l for l in lines if l.startswith("WARN: no perf.* cases")])
+
+    def test_no_batch_list_fails(self):
+        code, lines = self.check()
+        self.assertEqual(code, 1)
+        self.assertTrue([l for l in lines if l.startswith("FAIL: no batch list for My.Mod")])
+
+    def test_a_dev_dll_in_the_package_fails_even_with_perf_passing(self):
+        self.fake_run("run-1", [("perf.place-many", "pass")])
+        self.write("Package/MyMod.DevTests.dll", "dev")
+        code, lines = self.check()
+        self.assertEqual(code, 1)
+        self.assertIn(f"FAIL: DevTests assembly present: {self.package / 'MyMod.DevTests.dll'}", lines)
+
+
 class ListTest(TempCase):
     def batch_list(self, run, mod_name, batches):
         self.write(f"runs/{run}/report.json", "{}")

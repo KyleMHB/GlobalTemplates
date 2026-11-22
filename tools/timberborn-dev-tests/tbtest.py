@@ -19,6 +19,7 @@ import argparse
 import base64
 import ctypes
 from dataclasses import dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -417,16 +418,20 @@ def write_summary(run_dir, run_id, report, launcher):
 
 # ---- Evidence and release ----------------------------------------------------------------------------------------------------
 
+def developer_dll_problem(dll):
+    """Why a DLL is developer-only (a DevTests DLL, or one that references the runner), or None for production code."""
+    if "devtests" in dll.name.lower():
+        return f"DevTests assembly present: {dll}"
+    data = dll.read_bytes()
+    if RUNNER_ID.encode() in data or RUNNER_ID.encode("utf-16-le") in data:
+        return f"runner reference found in {dll}"
+    return None
+
+
 def release_problems(mod_dir):
     """Developer test files in a mod package: a DevTests DLL, a DLL that references the runner, or the runner's own files."""
-    problems = []
     mod_dir = Path(mod_dir)
-    marker = RUNNER_ID.encode()
-    for dll in sorted(mod_dir.rglob("*.dll")):
-        if "devtests" in dll.name.lower():
-            problems.append(f"DevTests assembly present: {dll}")
-        elif marker in (data := dll.read_bytes()) or RUNNER_ID.encode("utf-16-le") in data:
-            problems.append(f"runner reference found in {dll}")
+    problems = [p for dll in sorted(mod_dir.rglob("*.dll")) if (p := developer_dll_problem(dll))]
     problems += [f"runner request present: {p}" for p in sorted(mod_dir.rglob("request.json"))]
     for manifest in sorted(mod_dir.rglob("manifest.json")):
         try:
@@ -438,16 +443,84 @@ def release_problems(mod_dir):
     return problems
 
 
-def list_batches(evidence_root, mod_name):
-    """The batches from the newest run of this mod (None: runs without --config). The runner writes batches.json into each
-    run folder when it reaches the main menu."""
+def mod_build(mod_dir):
+    """What a run of the mod measured: the SHA-256 of each production DLL in its folder (relative path, lower case) and one
+    hash over them. Developer DLLs are left out, so a run with the DevTests DLL beside the mod matches the clean package."""
+    mod_dir = Path(mod_dir)
+    dlls = {p.relative_to(mod_dir).as_posix().lower(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(mod_dir.rglob("*.dll")) if not developer_dll_problem(p)}
+    combined = hashlib.sha256("".join(f"{name}\0{dlls[name]}\n" for name in sorted(dlls)).encode("utf-8")).hexdigest()
+    return {"hash": combined, "dlls": dlls}
+
+
+def read_json(path):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def newest_batch_list(evidence_root, mod_name):
+    """(run folder, batches.json) of the newest run of this mod that wrote a batch list, or None. The runner writes
+    batches.json into each run folder when it reaches the main menu."""
     for folder in reversed(core.run_dirs(evidence_root, RUN_FILES)):
-        try:
-            listed = json.loads((folder / "batches.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        listed = read_json(folder / "batches.json")
+        if listed is not None and listed.get("modName") == mod_name:
+            return folder, listed
+    return None
+
+
+def mod_runs(evidence_root, mod_id):
+    """Run folders whose launcher tested this mod (launcher.json "modUnderTest"), newest first. The runs folder is shared by
+    every mod, so a case Id another mod also uses never counts."""
+    return [folder for folder in reversed(core.run_dirs(evidence_root, RUN_FILES))
+            if (read_json(folder / "launcher.json") or {}).get("modUnderTest") == mod_id]
+
+
+def perf_problems(mod_dir, mod_id, evidence_root):
+    """D8: the mod's perf.* cases (from its newest batch list, diagnostic batches left out) must have passed in their newest
+    run, and that run must have measured the DLLs in this package. Mirrors rimtest.py's perf_problems without the shared
+    Dubs batch, which Timberborn has no counterpart for. Returns (problems, passing summaries, warnings)."""
+    if not mod_id:
+        return [f"no manifest Id in {mod_dir}; pass --config so release-check knows which mod's perf runs to read"], [], []
+    runs = mod_runs(evidence_root, mod_id)
+    listed = next((data for folder in runs if (data := read_json(folder / "batches.json")) is not None), None)
+    if listed is None:
+        return [f"no batch list for {mod_id}; run any of its batches with --config first (the game writes the list)"], [], []
+    wanted = {case: f"run {batch['id']}" for batch in listed.get("batches") or [] if not batch.get("diagnostic")
+              for case in batch.get("cases") or [] if case.startswith("perf.")}
+    if not wanted:
+        return [], [], ["no perf.* cases; time the mod's costly paths with PerfTiming in a case whose Id starts with perf."]
+    found = {}
+    for folder in runs:
+        if len(found) == len(wanted):
+            break
+        for case in (read_json(folder / "report.json") or {}).get("cases") or []:
+            if case.get("Id") in wanted and case["Id"] not in found:
+                found[case["Id"]] = (folder, case)
+    shipped = mod_build(mod_dir)["hash"]
+    problems, passed = [], []
+    for case_id, command in wanted.items():
+        if case_id not in found:
+            problems.append(f"no run of {case_id}; {command}")
             continue
-        if listed.get("modName") != mod_name:
-            continue
+        folder, case = found[case_id]
+        measured = ((read_json(folder / "launcher.json") or {}).get("modBuild") or {}).get("hash")
+        if measured != shipped:
+            problems.append(f"newest {case_id} run {folder.name} measured a different build of {mod_id}; {command}")
+        elif case.get("Result") != "pass":
+            problems.append(f"{case_id} in run {folder.name} did not pass ({case.get('Result')}): "
+                            f"{case.get('Reason') or case.get('Evidence') or 'see report.json'}")
+        else:
+            passed.append(f"{case_id} in run {folder.name}")
+    return problems, passed, []
+
+
+def list_batches(evidence_root, mod_name):
+    """The batches from the newest run of this mod (None: runs without --config)."""
+    newest = newest_batch_list(evidence_root, mod_name)
+    if newest:
+        folder, listed = newest
         print(f"Batches from run {folder.name} (the list a newer runner or DevTests build offers may differ):")
         for entry in listed.get("batches") or []:
             print(f"{entry['id']}: {len(entry.get('cases') or [])} cases" + (" (runner self-check)" if entry.get("diagnostic") else ""))
@@ -460,8 +533,9 @@ def list_batches(evidence_root, mod_name):
 
 # ---- Commands --------------------------------------------------------------------------------------------------------------
 
-def release_check(mod_dir, config, paths):
-    """The package check of D8 (the perf rule is T6). The default package is the installed copy the run would load."""
+def release_check(mod_dir, config, paths, evidence_root=EVIDENCE):
+    """D8: the package holds no developer test files, and its perf.* cases passed against the DLLs it ships. The default
+    package is the installed copy the run would load. The mod is the package's manifest Id, or --config's."""
     if mod_dir is None:
         if config is None:
             print("REFUSED: name the mod folder to check, or pass --config")
@@ -475,11 +549,16 @@ def release_check(mod_dir, config, paths):
         print(f"REFUSED: no mod folder at {mod_dir}")
         return 3
     problems = release_problems(mod_dir)
-    for problem in problems:
+    perf, measured, warnings = perf_problems(mod_dir, manifest_id(Path(mod_dir)) or (config and config.mod_id), evidence_root)
+    for problem in problems + perf:
         print("FAIL:", problem)
     if not problems:
         print("PASS: no developer test runner in", mod_dir)
-    return 1 if problems else 0
+    for line in measured if not perf else []:
+        print("PASS: perf", line)
+    for warning in warnings:
+        print("WARN:", warning)
+    return 1 if problems or perf else 0
 
 
 def recover(state_file, mods_dir, prefs):
@@ -547,7 +626,9 @@ def run(args, paths, prefs, config=None):
     protected_before, reports_before = core.tree_snapshot(*paths.protected), core.tree_snapshot(paths.error_reports)
     STATE.write_text(json.dumps({"runId": run_id, "prefs": snapshot}), encoding="utf-8")
     launcher = {"runId": run_id, "request": request, "problems": [], "modUnderTest": config and config.mod_id,
-                "modsSelected": [m.enabled_key for m in selected], "modsDisabled": len(mods) - len(selected)}
+                "modsSelected": [m.enabled_key for m in selected], "modsDisabled": len(mods) - len(selected),
+                # The DLLs the game loads for the mod under test; release-check matches perf runs to a package by them.
+                "modBuild": mod_build(paths.mod_folder(selected[0])) if selected else None}
     if recovered:
         launcher["recovered"] = recovered
     timed_out = False
@@ -651,7 +732,8 @@ def run_command(argv=None):
     timing = commands.add_parser("timings", help="per-batch wall clock of a run, slowest first, without launching Timberborn")
     timing.add_argument("run", nargs="?", help="run folder name or path (default: the latest run)")
     commands.add_parser("list", help="list the mod's batches from its newest run, without launching Timberborn")
-    check = commands.add_parser("release-check", help="verify a mod folder contains no developer test runner or DevTests DLL")
+    check = commands.add_parser("release-check", help="verify a mod folder contains no developer test runner or DevTests DLL, and its "
+                                   "perf.* cases passed on the DLLs it ships")
     check.add_argument("mod_dir", nargs="?", type=Path, help="the package to check (default: the installed folder of --config's mod)")
     pruner = commands.add_parser("prune", help="delete old run folders")
     pruner.add_argument("--keep", type=int, default=20, help="newest run folders to keep")
