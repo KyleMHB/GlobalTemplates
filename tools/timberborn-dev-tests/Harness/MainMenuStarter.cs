@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Bindito.Core;
 using Timberborn.GameSceneLoading;
@@ -39,22 +40,43 @@ public class MainMenuStarter : IUpdatableSingleton
         var request = Runner.Request;
         RunReport.Data["mainMenuReachedAtSeconds"] = UnityEngine.Time.realtimeSinceStartup;
         Runner.Stage = "main-menu";
-        // Fixture saves (Mode "load") arrive with the case API's Kit (T4).
-        if (request.Mode != "new")
+        Batch batch;
+        try
         {
-            RunReport.Finish(RunStatus.Refused, $"request mode '{request.Mode}' is not supported by this runner build");
+            if (!Batches.All.TryGetValue(request.Batch ?? "", out batch))
+            {
+                RunReport.Finish(RunStatus.Refused, $"unknown batch {request.Batch}; batches: {string.Join(", ", Batches.All.Keys.OrderBy(k => k))}");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            RunReport.Finish(RunStatus.Refused, "the batches could not be built: " + ex.Message);
             return;
         }
-        var maps = mapRepository.GetBuiltinMapNames().OrderBy(n => n).ToList();
-        if (!maps.Contains(request.Map))
+        var record = new BatchRecord { Id = batch.Id, Planned = batch.Plan.Select(p => p.Id).ToList() };
+        RunReport.Batches.Add(record);
+        string refusal;
+        if (batch.Fixture != null)
         {
-            RunReport.Finish(RunStatus.Refused, $"no built-in map {request.Map}; built-in maps: {string.Join(", ", maps)}");
-            return;
+            record.Fixture = "save " + batch.Fixture;
+            Runner.Stage = "loading-fixture";
+            Runner.Log($"Loading fixture {batch.Fixture} for batch {batch.Id}");
+            refusal = Kit.LoadFixture(gameSceneLoader, request, batch.Fixture);
         }
-        Runner.Stage = "starting-new-game";
-        Runner.Log($"Starting new game: {request.Faction} on {request.Map} as {request.SettlementName}");
-        // A non-empty settlement name skips the naming prompt; the game-context runner suspends the autosaver on load, so
-        // the settlement's folder in the player's Saves is never written.
-        gameSceneLoader.StartNewGameInstantly(request.Faction, MapFileReference.FromResource(request.Map), request.SettlementName);
+        else
+        {
+            string faction = request.Faction ?? batch.Faction, map = request.Map ?? batch.Map;
+            record.Fixture = $"new game: {faction} on {map}";
+            Runner.Stage = "starting-new-game";
+            Runner.Log($"Starting new game: {faction} on {map} as {request.SettlementName}");
+            refusal = Kit.NewGame(gameSceneLoader, mapRepository, faction, map, request.SettlementName);
+        }
+        if (refusal != null)
+        {
+            record.Status = "ended-early";
+            record.Reason = refusal;
+            RunReport.Finish(RunStatus.Refused, refusal);
+        }
     }
 }

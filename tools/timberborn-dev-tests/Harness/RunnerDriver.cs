@@ -18,6 +18,8 @@ public class RunnerDriver : MonoBehaviour
     {
         // Set every frame for this launcher-owned process only; the player's RunInBackground setting is never written.
         Application.runInBackground = true;
+        // Whether game time ran with the window in the background at some point (SPEC open risk; the smoke case reports it).
+        if (!Application.isFocused && Time.timeScale > 0f && Runner.Stage == "running") RunReport.WasUnfocused = true;
         if (RunReport.Written || Time.unscaledTime < nextBeat) return;
         nextBeat = Time.unscaledTime + 1f;
         var request = Runner.Request;

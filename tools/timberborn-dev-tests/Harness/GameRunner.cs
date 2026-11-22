@@ -1,6 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Bindito.Core;
 using Timberborn.Autosaving;
-using Timberborn.Beavers;
 using Timberborn.SingletonSystem;
 using Timberborn.TimeSystem;
 using Timberborn.UILayoutSystem;
@@ -17,34 +19,35 @@ public class GameConfigurator : Configurator
     }
 }
 
-// Waits for the game to be ready, then runs the requested batch. The only batch so far is the runner's own "smoke" check;
-// the case API (T4) replaces RunSmoke with its batch registry.
+// Waits for the game to be ready, then runs the requested batch: segment code between waits runs with game time stopped,
+// and the current wait is evaluated once a frame. Waits that advance time run the game at the batch's speed.
 public class GameRunner : ILoadableSingleton, IUpdatableSingleton
 {
-    public const string SmokeBatch = "smoke", SmokeCase = "smoke.new-game";
     private enum Step { WaitForUi, Settle, Running, Done }
+    // Waits that finish at once (zero hours, a condition already true) chain within a frame up to this many.
+    private const int MaxWaitsPerFrame = 100;
 
     private readonly EventBus eventBus;
     private readonly Autosaver autosaver;
     private readonly SpeedManager speedManager;
-    private readonly IDayNightCycle dayNightCycle;
-    private readonly BeaverPopulation beaverPopulation;
+    private readonly IContainer container;
 
     private Step step = Step.WaitForUi;
     private int settleFrames;
-    private float startDay, startRealtime;
-    private int beaversAtStart;
-    // Whether game time kept advancing while the window was in the background at some point (SPEC open risk).
-    private bool wasUnfocused;
+    private Batch batch;
+    private BatchRecord record;
+    private BatchContext ctx;
+    private IEnumerator<Wait> segment;
+    private int segmentIndex;
+    private Wait wait;
+    private float batchStartRealtime, batchStartHours;
 
-    public GameRunner(EventBus eventBus, Autosaver autosaver, SpeedManager speedManager, IDayNightCycle dayNightCycle,
-        BeaverPopulation beaverPopulation)
+    public GameRunner(EventBus eventBus, Autosaver autosaver, SpeedManager speedManager, IContainer container)
     {
         this.eventBus = eventBus;
         this.autosaver = autosaver;
         this.speedManager = speedManager;
-        this.dayNightCycle = dayNightCycle;
-        this.beaverPopulation = beaverPopulation;
+        this.container = container;
     }
 
     public void Load()
@@ -67,58 +70,126 @@ public class GameRunner : ILoadableSingleton, IUpdatableSingleton
 
     public void UpdateSingleton()
     {
-        if (RunReport.Written) return;
-        switch (step)
+        if (RunReport.Written || step == Step.Done) return;
+        if (step == Step.Settle)
         {
-            case Step.Settle:
-                if (++settleFrames < 5) return;
-                RunReport.Data["gameReadyAtSeconds"] = Time.realtimeSinceStartup;
-                if (Runner.Request.Batch != SmokeBatch)
+            if (++settleFrames < 5) return;
+            RunReport.Data["gameReadyAtSeconds"] = Time.realtimeSinceStartup;
+            StartBatch();
+            return;
+        }
+        if (step == Step.Running) Advance();
+    }
+
+    private void StartBatch()
+    {
+        // The main menu refused unknown batches, so this lookup holds.
+        batch = Batches.All[Runner.Request.Batch];
+        record = RunReport.Batches.Last(b => b.Id == batch.Id);
+        record.Planned = batch.Plan.Select(p => p.Id).ToList();
+        ctx = new BatchContext(container, record, batch, Runner.Request.Speed);
+        RunReport.BeforeFinish = reason => EndBatch(reason, finish: false);
+        batchStartRealtime = Time.realtimeSinceStartup;
+        batchStartHours = ctx.Hours;
+        record.Setup.Add("Autosave suspended for this runner-owned game; saves go only to the run folder");
+        record.Setup.Add("Randomness is not seeded; cases assert on ranges (D6)");
+        Runner.Stage = "running";
+        step = Step.Running;
+        SetSpeed(0f);
+        StartSegment(0);
+    }
+
+    private void StartSegment(int index)
+    {
+        segmentIndex = index;
+        segment = batch.Segment(index, ctx).GetEnumerator();
+        wait = null;
+    }
+
+    private void Advance()
+    {
+        if (Time.realtimeSinceStartup - batchStartRealtime > batch.WallLimit.TotalSeconds)
+        {
+            EndBatch($"the batch passed its wall-clock limit of {batch.WallLimit.TotalMinutes:0.#} min");
+            return;
+        }
+        // Case code runs until it yields a wait that isn't done yet, so the code after a finished wait runs in the same frame,
+        // before the game advances. A wait condition or prerequisite that throws is the case's, as is a throw in the segment.
+        for (int waits = 0; waits < MaxWaitsPerFrame; waits++)
+        {
+            if (wait == null)
+            {
+                bool more;
+                try { more = segment.MoveNext(); }
+                catch (Exception ex) { CaseException(ex, "case code"); return; }
+                if (!more)
                 {
-                    step = Step.Done;
-                    RunReport.Finish(RunStatus.Refused, $"unknown batch {Runner.Request.Batch}; this runner build only has {SmokeBatch}");
+                    if (segmentIndex + 1 < batch.SegmentCount) { StartSegment(segmentIndex + 1); continue; }
+                    EndBatch(null);
                     return;
                 }
-                beaversAtStart = beaverPopulation.NumberOfBeavers;
-                startDay = dayNightCycle.PartialDayNumber;
-                startRealtime = Time.realtimeSinceStartup;
-                speedManager.ChangeSpeed(Runner.Request.Speed);
-                Runner.Stage = "running";
-                step = Step.Running;
-                break;
-            case Step.Running:
-                RunSmoke();
-                break;
+                wait = ctx.LastWait = segment.Current;
+                if (wait == null) { CaseException(new InvalidOperationException("the segment yielded null; yield a Wait"), "case code"); return; }
+            }
+            try
+            {
+                if (!Done(wait)) { wait.Observe(); break; }
+            }
+            catch (Exception ex) { CaseException(ex, "a " + wait.GetType().Name + " condition or prerequisite"); return; }
+            wait = null;
+        }
+        SetSpeed(wait != null && wait.AdvancesTime ? ctx.Speed : 0f);
+    }
+
+    private bool Done(Wait w)
+    {
+        switch (w)
+        {
+            case HoursWait h:
+                if (float.IsNaN(h.Start)) h.Start = ctx.Hours;
+                return ctx.Hours - h.Start >= h.Duration;
+            case UntilWait u:
+                if (float.IsNaN(u.Start)) u.Start = ctx.Hours;
+                if (u.Condition()) { u.TimedOut = ctx.TimedOut = false; return true; }
+                if (ctx.Hours - u.Start >= u.MaxHours) { u.TimedOut = ctx.TimedOut = true; return true; }
+                return false;
+            case FrameWait f:
+                return --f.Remaining < 0;
+            case SaveWait s:
+                return s.Done;
+            default:
+                throw new InvalidOperationException("unknown wait " + w?.GetType().Name);
         }
     }
 
-    // Passes when a new game starts with beavers and game time advances at the requested speed without exceptions, which
-    // proves the launch, the main-menu start and the in-game hooks work, and whether ticks run while the window is unfocused.
-    private void RunSmoke()
+    // Re-issued every frame it differs, so anything else that changes the speed (a game event pausing it) can't stall a wait.
+    private void SetSpeed(float speed)
     {
-        if (!Application.isFocused) wasUnfocused = true;
-        float hours = (dayNightCycle.PartialDayNumber - startDay) * 24f;
-        if (hours < Runner.Request.GameHours) return;
+        if (speedManager.CurrentSpeed != speed) speedManager.ChangeSpeed(speed);
+    }
+
+    private void CaseException(Exception ex, string where)
+    {
+        // LogError, not LogException: the game's ExceptionListener sends any logged exception to the crash scene.
+        Debug.LogError($"[TimberbornDevTests] Case exception in {where}: {ex}");
+        if (ex is not SetupException)
+            record.Setup.Add("Exception stack (top frames): " + string.Join(" | ",
+                (ex.StackTrace ?? "none").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).Take(6)));
+        EndBatch($"exception in {where}: {ex.GetType().Name}: {ex.Message}");
+    }
+
+    private void EndBatch(string reason, bool finish = true)
+    {
+        if (step == Step.Done) return;
         step = Step.Done;
+        RunReport.BeforeFinish = null;
+        segment?.Dispose();
+        RunReport.CloseBatch(record, batch.Plan, batch.Diagnostic, reason);
+        record.GameHours = ctx.Hours - batchStartHours;
+        record.WallSeconds = Time.realtimeSinceStartup - batchStartRealtime;
+        try { Harness.Settings?.OnBatchEnd(); }
+        catch (Exception ex) { Debug.LogError("[TimberbornDevTests] OnBatchEnd threw: " + ex); }
         speedManager.ChangeSpeed(0f);
-        float wall = Time.realtimeSinceStartup - startRealtime;
-        var observed = new
-        {
-            gameHours = hours,
-            wallSeconds = wall,
-            requestedSpeed = Runner.Request.Speed,
-            beaversAtStart,
-            beaversAtEnd = beaverPopulation.NumberOfBeavers,
-            wasUnfocused,
-            exceptions = RunReport.ExceptionCount,
-        };
-        string reason = beaversAtStart == 0 ? "the new game started without beavers"
-            : RunReport.ExceptionCount > 0 ? $"{RunReport.ExceptionCount} exception(s) logged; see report errors"
-            : null;
-        RunReport.Cases.Add(new CaseRecord
-        {
-            Id = SmokeCase, Batch = SmokeBatch, Result = reason == null ? Results.Pass : Results.Fail, Reason = reason, Observed = observed,
-        });
-        RunReport.Finish(RunStatus.Complete);
+        if (finish) RunReport.Finish(RunStatus.Complete);
     }
 }
