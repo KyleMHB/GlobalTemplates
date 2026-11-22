@@ -38,7 +38,7 @@ https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/
 - `tools/contact-sheet` renders before-and-after sheets of artwork for sharing; the `contact-sheet` skill drives it.
 - `tools/clip-compare` joins video clips into a labelled before-and-after video for sharing; the `clip-compare` skill drives it.
 - The `unslop` skill removes AI writing patterns from reader-facing prose, then checks that no name, number, command or link changed.
-- The `devlog-post` skill turns a `DEVLOG.md` entry into a post for Discord or social media, using the two tools above for its image or clip.
+- The `devlog-post` skill turns a `DEVLOG.md` entry into a Discord post, using the two tools above for its image or clip.
 - The `discord-search` skill searches a Discord channel for answers to one development question, reading it through your signed-in browser.
 - `profiles/` holds author profiles; see [Author details](#author-details).
 

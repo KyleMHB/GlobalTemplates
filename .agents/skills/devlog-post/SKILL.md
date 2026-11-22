@@ -1,6 +1,6 @@
 ---
 name: devlog-post
-description: "Turn a moment from a project's development into a post for Discord or social media: an announcement, a before/after, an artwork vote, a mistake fixed, a milestone or a release. Use when the user wants to show progress on a mod or project, or asks what could be posted."
+description: "Turn a moment from a project's development into a Discord post: an announcement, a before/after, an artwork vote, a mistake fixed, a milestone or a release. Use when the user wants to show progress on a mod or project, or asks what could be posted."
 ---
 
 A post is one moment, one asset and a few plain sentences. The moments live in the project's `DEVLOG.md`, written as the work happens (see `Git/devlog-template.md` in the Templates repository that bundles this skill).
@@ -31,20 +31,21 @@ Done when: you have opened the asset and it shows the moment without the text.
 
 ## 3. Draft the text
 
-Read `writing-copy.md` in the Templates repository first. Then write `post.md` beside the asset with a section per platform the user posts to. Ask which platforms once, and record the answer in the project's instructions.
+Read `writing-copy.md` in the Templates repository first. Then write the Discord post as `post.md` beside the asset. Discord is the only platform the user posts to, so don't ask about others or draft for them.
 
 - Write as the author, in the first person, in their words where the devlog quotes them.
 - Say what the reader is looking at in the first sentence. Name the project in full once.
 - For a before-after or a mistake, say plainly what was wrong before saying what changed. That honesty is the point of the post.
 - Leave out test results, ticket numbers, commit hashes and tool names.
 - State anything that makes a comparison uneven, such as an older clip that runs sped up.
-- A vote says what is being chosen, how to vote (a reaction per letter, or the platform's poll) and when it closes. Ask the user whether the result decides the art or only informs it, and say which in the post.
+- A vote says what is being chosen, how to vote (a reaction per letter, or a Discord poll) and when it closes. Ask the user whether the result decides the art or only informs it, and say which in the post.
 - When the author profile the user's instructions name has an AI disclosure, ask once whether posts carry it, and follow the answer.
 - Include a link only when the user gave it or the project's files state it.
+- End on the last fact. Don't close with a question or call to action, such as "What do you think?" or "Let me know below"; the user finds them formulaic. A vote's voting instructions are the exception.
 
-Lengths: a Discord post reads well at up to about 120 words with a short list. For X or Bluesky, write one or two sentences under 280 characters.
+Length: a Discord post reads well at up to about 120 words with a short list.
 
-Done when: each platform section stands on its own next to the asset.
+Done when: the post stands on its own next to the asset.
 
 ## 4. Hand over and record
 

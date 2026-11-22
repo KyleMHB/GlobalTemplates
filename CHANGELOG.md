@@ -2,6 +2,13 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
+## 2026-11-22
+
+### Changed
+
+- `devlog-post` drafts Discord posts only. It no longer asks which platforms you post to or drafts for X or Bluesky.
+- `devlog-post` no longer ends posts with a question or call to action, except a vote's voting instructions.
+
 ## 2026-11-20
 
 ### Added
