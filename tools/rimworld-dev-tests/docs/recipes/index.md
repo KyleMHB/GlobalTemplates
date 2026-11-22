@@ -17,6 +17,7 @@ Search this index by symptom, required state or game type. Read only the matchin
 | Steps, soft checks, transcript, known gap, not implemented yet, negative needs a positive | [Authoring](../authoring.md#implement-a-case), [Measurements](measurements.md) | Shared `CaseScope.Step`, `Note`, `KnownGap`, `Conclude`; compile-checked only |
 | Warning, expected log line, allowance, noisy mod list | [Authoring](../authoring.md#run-and-report) | Shared `AllowedWarnings`, `AllowedErrors`, `FailOnWarnings`; compile-checked only |
 | Colonist needs tending, urgent patient, flaky by seed, canary case | [Environment](environment.md) | Shared `Kit.RemoveTendable`, used by `Kit.Worker` |
+| Language, translation, run in Russian or Chinese, langFolderName, game stays English | [Authoring](../authoring.md#mod-sets), [game facts](../game-facts.md#languages) | `run --language`; the launcher fails a run that loaded another language |
 | Wrong load order, loadAfter ignored, integration both ways | [Authoring](../authoring.md#mod-sets) | `looseOrderSets` in `devtests.json` |
 | Job reference changed, job pooled, food reserved by an eater, speed will not change, stranger in black | [game facts](../game-facts.md#reported-by-other-projects-not-verified-here) | Reported for 1.6, not verified on 1.7 |
 | Stat offset, quality, pain, clamp, age, gear | [game facts](../game-facts.md#stats) | Versioned facts; use an adult subject for offset ratios |

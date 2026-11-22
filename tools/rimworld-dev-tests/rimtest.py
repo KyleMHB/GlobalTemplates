@@ -2,7 +2,7 @@
 
 Configured per mod by a devtests.json file:
 
-  python rimtest.py --config <mod>/DevTests/devtests.json run <batch...|run-all> [--mods SET] [--seed N] [--timeout S] [--startup-timeout S] [--quit-on-finish] [--keep-open] [--record [--frames N]]
+  python rimtest.py --config <mod>/DevTests/devtests.json run <batch...|run-all> [--mods SET] [--language NAME] [--seed N] [--timeout S] [--startup-timeout S] [--quit-on-finish] [--keep-open] [--record [--frames N]]
   python rimtest.py --config ... close-session | latest [--batch B] | timings [run] | list | self-check | prune [--keep N] | release-check [mod_dir] | install-dev | remove-dev
   python rimtest.py --config ... status | lease take|release [--purpose P] | frames [run] [--at 3,8,14 | --count N]
 
@@ -21,6 +21,8 @@ and saves are never written. Each launch writes that folder's ModsConfig from a 
 --mods any set. The reserved set "full" copies the player's active list and mod settings, adding the mod under test if
 missing. Sets are validated (installed, dependencies, load order) before launch, and an idle session with a different set
 is closed and relaunched. Optional per-set mod settings: <mod>/DevTests/modsettings/<set>/Mod_*.xml.
+Every launch runs in English unless run is given --language (Russian, ChineseSimplified, ...); an idle session in another
+language is relaunched, and a run whose game loaded a different language fails.
 
 Every run refuses while an unrelated RimWorld is open or while the installed mod differs from the working tree, enforces a
 wall-clock limit, and checks that no user save, autosave setting or the player's ModsConfig changed and the loaded build matches.
@@ -79,7 +81,11 @@ LOG_KEEP_BYTES = 20 * 1024 * 1024
 # The game closes its run this long before the launcher's limit, so the report is written before the kill.
 DEADLINE_GRACE = 15
 # The harness's copy of Prefs.xml keeps the player's display settings but not these, so runs behave the same on every machine.
-PINNED_PREFS = {"autosaveIntervalDays": "1", "langFolderName": "English"}
+# --language replaces langFolderName for one run.
+DEFAULT_LANGUAGE = "English"
+PINNED_PREFS = {"autosaveIntervalDays": "1", "langFolderName": DEFAULT_LANGUAGE}
+# Vanilla ships English as a folder and every other language as <folder>.tar, which the game reads as a folder of that name.
+LANGUAGES_DIR = GAME_DIR / "Data/Core/Languages"
 MANUAL_MARKER = "RimWorldDevTests.manual"  # DevTestsStartup.ManualMarker
 STARTUP_ERROR_ARG = "RimWorldDevTestsStartupError"  # DevTestsStartup.StartupErrorArg
 DEFAULT_SET, FULL_SET, RUN_ALL = "default", "full", "run-all"
@@ -119,6 +125,8 @@ class Config:
     last_run_dir: Path = None
     # Patterns from --case; empty runs every case.
     cases: list = None
+    # The game's folder name for --language, as Prefs.xml stores it (Russian (Русский)).
+    language: str = DEFAULT_LANGUAGE
 
     @property
     def startup_error(self):
@@ -315,7 +323,7 @@ def prepare_userdata(config, selection):
     folder.mkdir(parents=True, exist_ok=True)
     if not (folder / "Prefs.xml").is_file() and config.prefs_path.is_file():
         shutil.copy2(config.prefs_path, folder / "Prefs.xml")  # once; the harness owns this copy afterwards
-    pin_prefs(folder / "Prefs.xml")
+    pin_prefs(folder / "Prefs.xml", config.language)
     version = ET.parse(USER_MODS_CONFIG).getroot().findtext("version") if USER_MODS_CONFIG.is_file() else None
     # Every installed DLC must be "known", or RimWorld treats it as new and may enable it or open a dialog.
     expansions = [i for i in index if i.startswith("ludeon.rimworld.")]
@@ -329,17 +337,48 @@ def prepare_userdata(config, selection):
     for source in selection.settings_dirs:
         for path in source.glob("Mod_*.xml"):
             shutil.copy2(path, folder / path.name)
-    print(f"Mod set {selection.name!r}: {len(selection.mods)} mods, {len(list(folder.glob('Mod_*.xml')))} settings files; save data {config.userdata}")
+    print(f"Mod set {selection.name!r}: {len(selection.mods)} mods, {len(list(folder.glob('Mod_*.xml')))} settings files; "
+          f"language {config.language}; save data {config.userdata}")
 
 
-def pin_prefs(path):
+def pin_prefs(path, language=DEFAULT_LANGUAGE):
     if not path.is_file():
         return
     text = pinned = path.read_text(encoding="utf-8", errors="replace")
-    for key, value in PINNED_PREFS.items():
-        pinned = re.sub(f"<{key}>.*?</{key}>", f"<{key}>{value}</{key}>", pinned)
+    for key, value in {**PINNED_PREFS, "langFolderName": language}.items():
+        pinned = re.sub(f"<{key}>.*?</{key}>", lambda _, key=key, value=value: f"<{key}>{value}</{key}>", pinned)
     if pinned != text:
         path.write_text(pinned, encoding="utf-8")
+
+
+def legacy_language_name(folder_name):
+    """The short name the game also matches for a mod's Languages folder (LoadedLanguage's constructor), but not in Prefs."""
+    return folder_name[:folder_name.index("(")].strip() if "(" in folder_name else folder_name.strip()
+
+
+def installed_languages(folder=None):
+    folder = Path(folder or LANGUAGES_DIR)
+    if not folder.is_dir():
+        raise RuntimeError(f"no language folder at {folder}; check the game directory")
+    return sorted({p.name.removesuffix(".tar") for p in folder.iterdir() if p.is_dir() or p.suffix == ".tar"})
+
+
+def resolve_language(name, installed=None):
+    """The folder name to write into Prefs.xml for a --language value. The game selects a language only when Prefs holds its
+    full folder name (Russian (Русский)); a short name falls back to English without an error (1.7.5014 source)."""
+    wanted = name.strip().lower()
+    if wanted == DEFAULT_LANGUAGE.lower():
+        return DEFAULT_LANGUAGE
+    installed = installed_languages() if installed is None else installed
+    for folder in installed:
+        if wanted in (folder.lower(), legacy_language_name(folder).lower()):
+            return folder
+    raise RuntimeError(f"unknown language {name!r}; installed: {', '.join(legacy_language_name(f) for f in installed)}")
+
+
+def session_identity(config, selection):
+    """What an idle session must have loaded to be reused."""
+    return {**selection.identity(), "language": config.language}
 
 
 def session_mods(config):
@@ -423,6 +462,8 @@ def run_problems(config, manifest, report, saves_before, prefs_before):
         problems.append("installed runtime files changed during the run")
     environment = (report or {}).get("environment") or {}
     if report and report.get("status") != "refused" and environment:
+        if environment.get("language") not in (None, config.language):
+            problems.append(f"the game loaded language {environment['language']!r}, not the requested {config.language!r}")
         if environment.get("runtimeHash") != manifest["runtimeHash"]:
             problems.append("report runtime manifest does not match preflight" + runtime_config_difference(config, environment))
         if (environment.get("modBuild") or {}).get("sha256") != sha256(config.production_dll):
@@ -687,15 +728,19 @@ def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, gra
             raise RuntimeError("the open session loaded different runtime files; close-session before running again")
         if (config.evidence_root / "session-request.json").exists():
             raise RuntimeError("the session already has a pending command; wait for it to finish")
-        loaded = session_mods(config)
+        loaded, wanted = session_mods(config), session_identity(config, selection)
+        if loaded:
+            loaded.setdefault("language", DEFAULT_LANGUAGE)  # written before --language existed
         # Compare what was loaded, not the set's name: run-all and a single batch often resolve to the same mods.
-        if loaded and {k: loaded.get(k) for k in ("mods", "settings")} == {k: selection.identity()[k] for k in ("mods", "settings")}:
+        keys = ("mods", "settings", "language")
+        if loaded and {k: loaded.get(k) for k in keys} == {k: wanted[k] for k in keys}:
             reuse = True
             token = status["session"]
             process = SessionProcess(status["pid"])
-            print(f"Reusing the open RimWorld runner session (mod set {selection.name!r}).")
+            print(f"Reusing the open RimWorld runner session (mod set {selection.name!r}, language {config.language}).")
         else:
-            print(f"The open session loaded mod set {(loaded or {}).get('set', 'unknown')!r}; relaunching with {selection.name!r}.")
+            print(f"The open session loaded mod set {(loaded or {}).get('set', 'unknown')!r} in {(loaded or {}).get('language', 'an unknown language')}; "
+                  f"relaunching with {selection.name!r} in {config.language}.")
             _close_session(config)
     if not reuse:
         prepare_userdata(config, selection)
@@ -703,7 +748,7 @@ def _run_session(config, batch, seed, timeout, mod_set, startup_timeout=300, gra
         for build in config.developer_builds:
             shutil.copy2(build, config.dev_assemblies / build.name)
         token = uuid.uuid4().hex
-        (config.evidence_root / "session-mods.json").write_text(json.dumps(selection.identity(), indent=2), encoding="utf-8")
+        (config.evidence_root / "session-mods.json").write_text(json.dumps(session_identity(config, selection), indent=2), encoding="utf-8")
         try:
             launched = subprocess.Popen(config.launch_command() + [config.arg("Session", token)])
             process = SessionProcess(launched.pid)
@@ -1279,6 +1324,10 @@ GUIDE_TOPICS = {
 
 
 def main(argv=None):
+    # A language's folder name (Russian (Русский)) must not crash a launcher whose output is piped through a legacy code page.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     try:
         return run_command(argv)
     except Exception:  # any launcher fault gets its own exit code, so it is never read as a test failure (1)
@@ -1296,6 +1345,8 @@ def run_command(argv=None):
     launch = commands.add_parser("run", help="run batches, or run-all; reuse the runner session or launch one")
     launch.add_argument("batch", nargs="+", help="one or more batches, run grouped by mod set; or run-all")
     launch.add_argument("--mods", metavar="SET", help="mod set from devtests.json, or full for the player's list (default: the batch's set)")
+    launch.add_argument("--language", metavar="NAME", help="run in this installed game language, by short or full folder name "
+                        "(Russian, ChineseSimplified); default English. An idle session in another language is relaunched")
     launch.add_argument("--seed", type=int, default=1)
     launch.add_argument("--case", action="append", default=[], metavar="ID",
                         help="run only cases whose full id matches (glob with * and ?; repeatable). The others are reported as "
@@ -1353,6 +1404,11 @@ def run_command(argv=None):
             parser.error("--ffmpeg, --show-ui and --frames only apply with --record")
         if args.frames is not None and args.frames < 1:
             parser.error("--frames must be at least 1")
+        try:
+            config.language = resolve_language(args.language) if args.language else DEFAULT_LANGUAGE
+        except RuntimeError as error:
+            print("REFUSED:", error)
+            return 3
         try:
             take_lease(config, "run")
         except RuntimeError as error:

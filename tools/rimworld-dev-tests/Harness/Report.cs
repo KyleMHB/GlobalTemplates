@@ -209,6 +209,8 @@ public class Progress
         text.AppendLine($"{Harness.Settings.DisplayName} test run {RunId}: {Status.ToUpperInvariant()}, overall {(OverallPass ? "PASS" : "NOT PASSED")}");
         if (!string.IsNullOrEmpty(Reason)) text.AppendLine("Reason: " + Reason);
         text.AppendLine($"Request: {string.Join(", ", Request.Batches)} seed {Request.Seed} ({Request.Origin})");
+        // A JsonElement once the progress file is reloaded, so read it as text.
+        if (Environment.GetValueOrDefault("language")?.ToString() is { Length: > 0 } language) text.AppendLine("Language: " + language);
         int notSelected = Cases.Count(c => c.CoverageReason == CoverageReasons.NotSelected);
         if (Request.Filtered)
             text.AppendLine($"FILTERED by --case {string.Join(" ", Request.Cases)}: {notSelected} planned case(s) not selected; not a full batch run");

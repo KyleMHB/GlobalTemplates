@@ -93,7 +93,7 @@ public static class TestRunner
         File.WriteAllText(ActivePointer, dir);
         controller = new Controller(progress, dir);
         controller.Save();
-        Log.Message($"{Harness.Settings.LogPrefix}Run {runId} started. Evidence: {dir}");
+        Log.Message($"{Harness.Settings.LogPrefix}Run {runId} started in {LanguageDatabase.activeLanguage?.folderName}. Evidence: {dir}");
         return null;
     }
 
@@ -698,6 +698,8 @@ internal static class EnvironmentInfo
             ["developerHash"] = Sha256(Harness.Settings.DevDllPath),
             ["harnessHash"] = Sha256(typeof(TestRunner).Assembly.Location),
             ["game"] = new Dictionary<string, string> { ["version"] = VersionControl.CurrentVersionStringWithRev },
+            // The launcher fails a run whose language differs from --language: Prefs with an unmatched name falls back to English silently.
+            ["language"] = LanguageDatabase.activeLanguage?.folderName,
             ["modBuild"] = new Dictionary<string, string> { ["path"] = dll, ["sha256"] = File.Exists(dll) ? Sha256(dll) : null },
             // What RuntimeManifest hashed, so the launcher can name a devtests.json that disagrees instead of a bare hash mismatch.
             ["runtimeConfig"] = new Dictionary<string, object>
