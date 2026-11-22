@@ -134,11 +134,7 @@ class Recording:
                     # gfxcapture can fail to open the window just after the game reports ready. The game waits for the
                     # first frame before testing, so a restart before then loses nothing.
                     if not self.acknowledged and self.attempts < START_ATTEMPTS:
-                        self.progress_thread.join(timeout=2)
-                        self.process.stdin.close()
-                        self.process.stdout.close()
-                        self.process = None
-                        self.retry_at = time.monotonic() + RETRY_DELAY * self.attempts
+                        self.retry()
                         return
                     raise RuntimeError(f"FFmpeg ended before capture completion (attempt {self.attempts} of {START_ATTEMPTS}); see recording.log")
                 if not self.acknowledged:
@@ -148,7 +144,14 @@ class Recording:
                         self.acknowledged = True
                         print(f"Recording: {self.output}", flush=True)
                     elif time.monotonic() - self.started_at > 20:
-                        raise RuntimeError("FFmpeg did not capture a frame within 20 seconds; see recording.log")
+                        # gfxcapture can also open the window and then deliver no frame; that attempt is stopped and retried
+                        # the same way.
+                        if self.attempts < START_ATTEMPTS:
+                            self.log.write(f"no frame within 20 seconds; stopping attempt {self.attempts}\n")
+                            self.log.flush()
+                            self.retry()
+                            return
+                        raise RuntimeError(f"FFmpeg did not capture a frame within 20 seconds ({START_ATTEMPTS} attempts); see recording.log")
             if self.marker("complete").is_file():
                 if self.tail_until is None:
                     self.tail_until = time.monotonic() + 2
@@ -158,6 +161,20 @@ class Recording:
             self.error = str(error)
             self.write("failed", {"error": self.error})
             self.close()
+
+    def retry(self):
+        """Ends the current attempt before its first frame and schedules the next one."""
+        if self.process.poll() is None:
+            self.process.kill()
+            self.process.wait()
+        self.progress_thread.join(timeout=2)
+        self.process.stdin.close()
+        self.process.stdout.close()
+        self.process = None
+        # FFmpeg runs with -n, so an empty file left by this attempt would stop the next one from writing.
+        if self.raw_output.is_file():
+            self.raw_output.unlink()
+        self.retry_at = time.monotonic() + RETRY_DELAY * self.attempts
 
     def close(self):
         if self.done:
