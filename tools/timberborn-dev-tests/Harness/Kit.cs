@@ -50,7 +50,7 @@ public static class Kit
         string source = FixturePath(request, fixture);
         if (source == null) return $"fixture {fixture} not found in {request.FixtureDir ?? "(no fixture folder)"} or {request.RunDir}";
         string root = Path.Combine(request.RunDir, "fixtures");
-        string settlement = request.SettlementName ?? "DevTests";
+        string settlement = request.SettlementName;
         string save = Path.GetFileNameWithoutExtension(source);
         Directory.CreateDirectory(Path.Combine(root, settlement));
         File.Copy(source, Path.Combine(root, settlement, save + ".timber"), true);
@@ -63,7 +63,7 @@ public static class Kit
     public static SaveWait SaveFixture(BatchContext ctx, string name)
     {
         string root = Path.Combine(ctx.Request.RunDir, "saves");
-        string settlement = ctx.Request.SettlementName ?? "DevTests";
+        string settlement = ctx.Request.SettlementName;
         var wait = new SaveWait { Path = Path.Combine(root, settlement, name + ".timber") };
         ctx.Get<GameSaver>().QueueSaveSkippingNameValidation(new SaveReference(name, new SettlementReference(settlement, root)), () => wait.Done = true);
         ctx.Setup("Developer saved the game to " + wait.Path);

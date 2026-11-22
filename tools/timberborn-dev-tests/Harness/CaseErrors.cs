@@ -33,7 +33,7 @@ public static class ModErrors
         catch (Exception ex) { Runner.Log("HarnessSettings unavailable for the startup check: " + ex.Message); }
         Marker ??= request.ModName;
         if (Marker == null) return;
-        var wanted = new HashSet<string>(request.ModAssemblies ?? new List<string>());
+        var wanted = new HashSet<string>(request.ModAssemblies);
         var assemblies = AppDomain.CurrentDomain.GetAssemblies();
         var game = new HashSet<string>(assemblies.Where(IsGame).SelectMany(Namespaces));
         names = assemblies.Where(a => wanted.Contains(a.GetName().Name)).SelectMany(Namespaces)

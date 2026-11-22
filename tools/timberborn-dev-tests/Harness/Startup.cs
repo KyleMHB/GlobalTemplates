@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Newtonsoft.Json;
 using Timberborn.ModManagerScene;
 using UnityEngine;
@@ -52,6 +53,9 @@ public class DevTestsStartup : IModStarter
             unityVersion = Application.unityVersion,
             gameVersion = Timberborn.Versioning.GameVersions.CurrentVersion.Formatted,
             consoleLogPath = Application.consoleLogPath,
+            // Every mod's assemblies are loaded before any starter runs, so this is what the run actually executed: the
+            // runner, the mod's DevTests assembly and the mod under test's own.
+            assemblies = TestedAssemblies(request),
         };
         string probeFailure = ProbeIsolation(JsonConvert.DeserializeObject<IsolationProbe>(File.ReadAllText(requestPath)));
         if (probeFailure != null)
@@ -65,6 +69,22 @@ public class DevTestsStartup : IModStarter
         var driver = new GameObject("TimberbornDevTestsDriver");
         UnityEngine.Object.DontDestroyOnLoad(driver);
         driver.AddComponent<RunnerDriver>();
+    }
+
+    private static List<string> TestedAssemblies(RunRequest request)
+    {
+        var runner = typeof(Runner).Assembly;
+        var named = new HashSet<string>(request.ModAssemblies);
+        return AppDomain.CurrentDomain.GetAssemblies().Where(a => a == runner || named.Contains(a.GetName().Name) || UsesRunner(a, runner))
+            .Select(a => $"{a.GetName().Name} {a.GetName().Version}").OrderBy(n => n).ToList();
+    }
+
+    // A throw here would escape the starter and crash the game, and some other mod's dynamic assembly may not list its
+    // references.
+    private static bool UsesRunner(System.Reflection.Assembly assembly, System.Reflection.Assembly runner)
+    {
+        try { return assembly.GetReferencedAssemblies().Any(r => r.Name == runner.GetName().Name); }
+        catch (Exception) { return false; }
     }
 
     // The launcher's mod isolation, read from the same request.json: each ModEnabled key it wrote and the value written.
