@@ -48,4 +48,4 @@ Done when: the command printed the output path, length and size, with no size wa
 
 ## 4. Check and hand over
 
-Make a frame grid of the output that includes the first frame, the last frame and the frames either side of each loop point. Check that no panel is dark or on a caption card, the labels match the versions, and the still shows every subject. Give the user the files. Say what each panel is, when it was filmed, and anything that makes the comparison uneven, such as one side being sped up or zoomed. Posting it is the user's step.
+Make a frame grid of the output that includes the first frame, the last frame and the frames either side of each loop point. Check that no panel is dark or on a caption card, the labels match the versions, and the still shows every subject. The first frame is the video's preview on Discord and YouTube: every panel in it must show its subject, so never add a fade-in. Give the user the files. Say what each panel is, when it was filmed, and anything that makes the comparison uneven, such as one side being sped up or zoomed. Posting it is the user's step.

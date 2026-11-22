@@ -27,6 +27,8 @@ Done when: the user has agreed which moment the post is about.
 
 Write assets and drafts to one ignored folder per post, such as `work/posts/<date>-<slug>/`. Film new footage only when the entry's captures cannot show the moment, and only with the project's permission to launch.
 
+A video's first frame is its preview on Discord and YouTube, so it opens on the scene: never on black, a fade-in or a loading screen. A fade-out at the end is fine. Look at the first frame before handing a video over.
+
 Done when: you have opened the asset and it shows the moment without the text.
 
 ## 3. Draft the text
