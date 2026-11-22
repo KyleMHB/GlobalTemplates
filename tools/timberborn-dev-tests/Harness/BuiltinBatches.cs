@@ -36,7 +36,8 @@ public class SmokeBatch : Batch
 // reported as intended passes; none of them is gameplay evidence.
 public class DiagnosticBatch : Batch
 {
-    public const string PassCase = "diag.pass", FailCase = "diag.fail", GapCase = "diag.known-gap";
+    // The timing case is not named perf.*: release-check counts only a mod's own perf cases.
+    public const string PassCase = "diag.pass", FailCase = "diag.fail", GapCase = "diag.known-gap", TimingCase = "diag.perf-timing";
     public override string Id => "diagnostic";
     public override bool Diagnostic => true;
     // The placed building's template is the Folktails one.
@@ -47,6 +48,7 @@ public class DiagnosticBatch : Batch
         new PlannedCase(PassCase, Levels.Diagnostic, Results.Pass),
         new PlannedCase(FailCase, Levels.Diagnostic, Results.Fail),
         new PlannedCase(GapCase, Levels.Diagnostic, Results.Skip),
+        new PlannedCase(TimingCase, Levels.Diagnostic, Results.Pass),
     };
 
     public override IEnumerable<Wait> Segment(int index, BatchContext ctx)
@@ -87,5 +89,13 @@ public class DiagnosticBatch : Batch
         gap.Step(true, "a step that holds");
         gap.KnownGap(false, "something the runner doesn't do yet", "intentional diagnostic gap");
         gap.Conclude();
+
+        // Proves PerfTiming measures in game: a goods count is cheap, so its time is above zero and far below a frame.
+        var timing = ctx.Begin(TimingCase);
+        double ms = PerfTiming.MsPerCall(() => Kit.Goods(ctx, "Berries"), calls: 200);
+        PerfTiming.Report(timing, ms, 200, 100, "a hundred stock lookups in one frame");
+        timing.Step(ms > 0, "a timed call takes measurable time");
+        timing.Step(ms < 5, "one stock lookup takes under 5 ms");
+        timing.Conclude();
     }
 }
