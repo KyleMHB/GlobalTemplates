@@ -45,8 +45,6 @@ public class RunRequest
     public float GameHours = 2f;
     // When the launcher will kill the game (UTC milliseconds), less a margin; 0 when no launcher set a limit.
     public long DeadlineUtcMs;
-    // PlayerPrefs keys the launcher wrote to disable other mods; the starter logs what the game sees (T3 makes it fail fast).
-    public string[] ProbePrefKeys = new string[0];
 }
 
 public class CaseRecord
