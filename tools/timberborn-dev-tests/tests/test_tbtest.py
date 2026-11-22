@@ -211,6 +211,55 @@ class SummaryTest(TempCase):
         text = tbtest.write_summary(self.root, "run-1", None, {"problems": []})
         self.assertIn("no report.json", text)
 
+    # Field names below are copied from Harness/Report.cs (CaseRecord, BatchRecord).
+    def diagnostic_report(self, gap_result="skip"):
+        return {"status": "complete", "overallPass": gap_result == "skip", "errorCount": 1, "exceptionCount": 0,
+                "batches": [{"Id": "diagnostic", "Status": "complete", "Reason": None}],
+                "cases": [
+                    {"Id": "diag.pass", "Batch": "diagnostic", "Result": "pass", "Reason": "", "Diagnostic": True, "ExpectedResult": "pass",
+                     "Steps": ["  PASS  the new settlement starts with beavers"], "LoggedErrors": 0, "Evidence": [], "FixedGaps": 0},
+                    {"Id": "diag.fail", "Batch": "diagnostic", "Result": "fail", "Reason": "intentional: 1 is 2", "Diagnostic": True,
+                     "ExpectedResult": "fail", "Steps": ["  PASS  a step that holds", ">>FAIL  intentional: 1 is 2"], "LoggedErrors": 1,
+                     "Evidence": ["logged error: Error: Intentional diagnostic error"], "FixedGaps": 0},
+                    {"Id": "diag.known-gap", "Batch": "diagnostic", "Result": gap_result, "CoverageReason": "known-gap",
+                     "Reason": "known gap, something: intentional", "Diagnostic": True, "ExpectedResult": "skip",
+                     "Steps": ["  GAP   something: intentional"], "LoggedErrors": 0, "Evidence": [], "FixedGaps": 0},
+                ]}
+
+    def test_diagnostic_cases_show_their_intended_result_and_the_verdict_comes_from_the_report(self):
+        text = tbtest.write_summary(self.root, "run-1", self.diagnostic_report(), {"problems": []})
+        self.assertIn("PASS", text.splitlines()[0])
+        self.assertIn("  FAIL diag.fail (intended fail): intentional: 1 is 2", text)
+        self.assertIn("  SKIP [known-gap] diag.known-gap (intended skip): known gap, something: intentional", text)
+        self.assertIn("  diagnostic: 3 of 3 reported as intended", text)
+
+    def test_a_diagnostic_case_reported_otherwise_is_marked(self):
+        text = tbtest.write_summary(self.root, "run-1", self.diagnostic_report(gap_result="pass"), {"problems": []})
+        self.assertIn("FAIL", text.splitlines()[0])
+        self.assertIn("  PASS diag.known-gap (intended skip, NOT AS INTENDED)", text)
+        self.assertIn("  diagnostic: 2 of 3 reported as intended", text)
+
+    def test_a_failing_case_prints_its_steps_and_logged_errors(self):
+        text = tbtest.write_summary(self.root, "run-1", self.diagnostic_report(), {"problems": []})
+        self.assertIn("      >>FAIL  intentional: 1 is 2", text)
+        self.assertIn("    1 logged error(s): logged error: Error: Intentional diagnostic error", text)
+        self.assertNotIn("the new settlement starts with beavers", text)
+
+    def test_gameplay_skips_are_listed_as_not_covered_and_a_held_gap_is_flagged(self):
+        report = {"status": "complete", "overallPass": True, "batches": [], "cases": [
+            {"Id": "mod.gap", "Batch": "mod", "Result": "skip", "CoverageReason": "known-gap", "Reason": "known gap, x: y", "Diagnostic": False},
+            {"Id": "mod.fixed", "Batch": "mod", "Result": "pass", "Reason": "", "Diagnostic": False, "FixedGaps": 1},
+        ]}
+        text = tbtest.write_summary(self.root, "run-1", report, {"problems": []})
+        self.assertIn("  Not covered: 1 skipped case(s)\n    SKIP [known-gap] mod/mod.gap: known gap, x: y", text)
+        self.assertIn("  KNOWN GAP NOW HOLDS in mod/mod.fixed: 1 step(s) marked FIXED; make each a Step", text)
+
+    def test_a_batch_that_ended_early_is_named(self):
+        report = {"status": "complete", "overallPass": False, "cases": [],
+                  "batches": [{"Id": "mod", "Status": "ended-early", "Reason": "exception in case code: SetupException: no spot"}]}
+        text = tbtest.write_summary(self.root, "run-1", report, {"problems": []})
+        self.assertIn("  BATCH mod ended-early: exception in case code: SetupException: no spot", text)
+
 
 if __name__ == "__main__":
     unittest.main()

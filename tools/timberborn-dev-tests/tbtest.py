@@ -313,6 +313,41 @@ def build_runner():
 
 # ---- Summary ---------------------------------------------------------------------------------------------------------------
 
+def case_lines(cases, batches):
+    """One line per case, as the runner's Report.cs records it. A diagnostic case names the result it was meant to report; a
+    case that didn't pass shows its steps and logged errors; gameplay skips are listed again under "Not covered"."""
+    lines = []
+    for case in cases:
+        result, diagnostic = str(case.get("Result")), case.get("Diagnostic")
+        coverage = f" [{case.get('CoverageReason') or 'unclassified'}]" if result == "skip" else ""
+        intended = ""
+        if diagnostic:
+            mismatch = "" if result == case.get("ExpectedResult") else ", NOT AS INTENDED"
+            intended = f" (intended {case.get('ExpectedResult')}{mismatch})"
+        lines.append(f"  {result.upper()}{coverage} {case.get('Id')}{intended}" + (f": {case['Reason']}" if case.get("Reason") else ""))
+        if case.get("Observed"):
+            lines.append(f"    observed {json.dumps(case['Observed'])[:400]}")
+        if result != "pass":
+            lines += [f"      {step}" for step in case.get("Steps") or []]
+        if case.get("LoggedErrors"):
+            first = [e for e in case.get("Evidence") or [] if e.startswith("logged error:")][:3]
+            lines.append(f"    {case['LoggedErrors']} logged error(s): " + "; ".join(first))
+        if not diagnostic and case.get("FixedGaps"):
+            lines.append(f"  KNOWN GAP NOW HOLDS in {case.get('Batch')}/{case.get('Id')}: {case['FixedGaps']} step(s) marked FIXED; make each a Step")
+    for batch in batches:
+        if batch.get("Status") != "complete":
+            lines.append(f"  BATCH {batch.get('Id')} {batch.get('Status')}: {batch.get('Reason')}")
+    checks = [c for c in cases if c.get("Diagnostic")]
+    if checks:
+        matched = sum(1 for c in checks if c.get("Result") == c.get("ExpectedResult"))
+        lines.append(f"  diagnostic: {matched} of {len(checks)} reported as intended")
+    # A skip is not coverage, even in a run reported as PASS.
+    skipped = [c for c in cases if not c.get("Diagnostic") and c.get("Result") == "skip"]
+    lines.append(f"  Not covered: {len(skipped)} skipped case(s)" if skipped else "  Not covered: none")
+    lines += [f"    SKIP [{c.get('CoverageReason') or 'unclassified'}] {c.get('Batch')}/{c.get('Id')}: {c.get('Reason')}" for c in skipped]
+    return lines
+
+
 def write_summary(run_dir, run_id, report, launcher):
     problems = launcher.get("problems") or []
     if report is None:
@@ -325,10 +360,7 @@ def write_summary(run_dir, run_id, report, launcher):
     else:
         lines.append(f"  status {report.get('status')}" + (f": {report['reason']}" if report.get("reason") else "")
                      + f"; errors {report.get('errorCount')}, exceptions {report.get('exceptionCount')}")
-        for case in report.get("cases") or []:
-            lines.append(f"  {str(case.get('Result')).upper()} {case.get('Id')}" + (f": {case['Reason']}" if case.get("Reason") else ""))
-            if case.get("Observed") is not None:
-                lines.append(f"    observed {json.dumps(case['Observed'])[:400]}")
+        lines += case_lines(report.get("cases") or [], report.get("batches") or [])
     log = launcher.get("logErrors")
     if log and (log.get("exceptions") or log.get("crashed")):
         lines.append(f"  Player.log: {log['exceptions']} exception(s){', crashed' if log.get('crashed') else ''}; first: "
@@ -480,8 +512,8 @@ def run_command(argv=None):
                         help="the mod's DevTests/devtests.json; run keeps that mod and its RequiredMods enabled (default: no mods)")
     commands = parser.add_subparsers(dest="command", required=True)
     launch = commands.add_parser("run", help="launch Timberborn and run a batch in a new game (user's terminal only)")
-    launch.add_argument("batch", help="batch to run; this runner build has only smoke")
-    launch.add_argument("--map", default="_Mini", help="built-in map for the new game")
+    launch.add_argument("batch", help="batch to run: smoke, diagnostic or one of the mod's")
+    launch.add_argument("--map", help="built-in map for the new game, instead of the batch's own (_Mini by default)")
     launch.add_argument("--hours", type=float, default=2.0, help="game hours the smoke batch runs")
     launch.add_argument("--speed", type=float, default=30.0, help="game speed while it runs (dev speeds: 30, 99)")
     launch.add_argument("--timeout", type=int, default=600,
