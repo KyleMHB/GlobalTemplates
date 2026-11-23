@@ -116,6 +116,9 @@ public static class RunReport
     private static void OnLog(string condition, string stackTrace, LogType type)
     {
         if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert) return;
+        // The game logs errors without a stack trace, so an error a mod logs without its name in the text would not name it.
+        // This callback runs on the logging thread, so the managed stack still holds the caller's frames.
+        if (string.IsNullOrWhiteSpace(stackTrace) && type != LogType.Exception) stackTrace = CallerFrames();
         lock (errors)
         {
             if (type == LogType.Exception) exceptionCount++; else errorCount++;
@@ -124,6 +127,11 @@ public static class RunReport
         CaseErrors.Record((type == LogType.Exception ? "uncaught exception: " : type + ": ") + condition);
         ModErrors.Record((type == LogType.Exception ? "uncaught exception: " : type + ": ") + condition, stackTrace);
     }
+
+    private static string CallerFrames() => string.Join("\n", new System.Diagnostics.StackTrace(2, false).GetFrames()
+        .Select(f => f.GetMethod())
+        .Where(m => m?.DeclaringType != null && !m.DeclaringType.FullName.StartsWith("UnityEngine.") && m.DeclaringType != typeof(RunReport))
+        .Select(m => $"{m.DeclaringType.FullName}:{m.Name}"));
 
     public static CaseRecord Case(string batch, string id) => Cases.FirstOrDefault(c => c.Batch == batch && c.Id == id);
 
