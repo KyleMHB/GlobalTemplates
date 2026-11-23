@@ -87,7 +87,7 @@ As of 2026-11-23 on `timberborn-dev-tests`. Unit tests (core, Timberborn, RimWor
 | T4 | done | `run diagnostic` reported 4 of 4 as intended (`20261123-075028-diagnostic`). Fixture load/save, the batch time limit and the case-exception path are not exercised yet |
 | T5 | done | `list` and `timings` read a real run. A logged starter error shows on `Startup:` naming the mod, and fails the run (exit 1) under `FailOnModErrors`; an uncaught one exits 2 |
 | T6 | done | `release-check --config` passed after `perf-check`, failed against a changed production DLL, and failed without `--config` |
-| T7 | built | `test_launcher.py` passes unchanged; pending: one RimWorld mod's `run-all` |
+| T7 | done | `test_launcher.py` passes unchanged. Era Looks' `run-all` (`20261123-075926`) completed with 12 of 12 self-checks as intended and no failures. One case skipped (`theme-copies-sync`, setup failed) because UI Rethemed - Animals updated from 1.1.1 to 1.2.0 after the last passing run and no longer keeps a palette object, not because of the harness |
 | T8 | done | — |
 | T9 | elsewhere | built in its own thread |
 
