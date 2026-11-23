@@ -1,11 +1,11 @@
 ---
 name: unslop
-description: Remove AI writing patterns. Apply automatically when writing or editing READMEs, Steam descriptions, or website descriptions. For all other writing, use only when the user explicitly requests unslop.
+description: Remove AI writing patterns. Apply automatically when writing or editing a README, CHANGELOG, Steam description, website description, or the description field of About.xml, mod.json or a Timberborn manifest.json. For all other writing, use only when the user explicitly requests unslop.
 ---
 
 # Unslop
 
-Edit text to remove AI patterns. Apply automatically when writing or editing READMEs, Steam descriptions, or website descriptions. For any other writing, apply only when the user explicitly requests unslop.
+Edit text to remove AI patterns. Apply automatically to the unslop scope in the Templates root's `writing-copy.md`, which owns that list. For any other writing, apply only when the user explicitly requests unslop.
 
 ## Process
 
