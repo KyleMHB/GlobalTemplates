@@ -30,6 +30,10 @@ public abstract class Batch
     public abstract int SegmentCount { get; }
     public abstract IEnumerable<Wait> Segment(int index, BatchContext ctx);
 
+    // Starts the colony through the player's new-game pages (scenario, storyteller, world, landing site, ideoligion,
+    // colonists) instead of the quickstart, which builds the game in code and opens none of them. Slower: the world is
+    // generated at the page's default planet coverage. Use it where a mod touches those pages or what they generate.
+    public virtual bool NewGamePages => false;
     // A showcase drives its own camera, overlay and recording handshake, and may export its colony with --save-as.
     // The runner's test camera, progress panel and recording gate are for every other batch.
     public virtual bool IsShowcase => false;

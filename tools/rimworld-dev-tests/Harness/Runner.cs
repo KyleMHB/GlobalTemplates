@@ -146,6 +146,8 @@ internal class Controller
         RunSegment = "segment", AwaitLoad = "await-load";
     private const double FrameBudgetMs = 30;
     private static readonly TimeSpan SceneLimit = TimeSpan.FromMinutes(5);
+    // World generation at the player's default planet coverage, the pages and a full-size map.
+    private static readonly TimeSpan NewGameLimit = TimeSpan.FromMinutes(15);
 
     private Progress progress;
     private readonly string dir;
@@ -155,6 +157,7 @@ internal class Controller
     private Wait wait;
     private DateTime stageStarted = DateTime.UtcNow, batchStarted;
     private string cancelReason, quickstartError;
+    private NewGameFlow newGame;
     private bool recordingReady, batchOpen;
     // Errors logged from here on are the run's; totals go into the report whatever each case's result.
     private readonly long runErrorMark = CaseErrors.Mark, runModErrorMark = CaseErrors.ModMark, runWarningMark = CaseErrors.WarningMark;
@@ -197,7 +200,8 @@ internal class Controller
             switch (progress.Stage)
             {
                 case LeaveGame:
-                    if (Current.ProgramState == ProgramState.Playing) GenScene.GoToMainMenu();
+                    // A new game that stopped on one of its pages leaves a game without a map behind at the main menu.
+                    if (Current.ProgramState == ProgramState.Playing || Current.Game != null) GenScene.GoToMainMenu();
                     Stage(AwaitEntry);
                     break;
                 case AwaitEntry:
@@ -209,7 +213,13 @@ internal class Controller
                     break;
                 case AwaitMap:
                     if (quickstartError != null) { EndBatch("quickstart failed: " + quickstartError); break; }
-                    if (MapReady()) { BindBatch(); PrepareMap(); StartSegment(0); }
+                    if (MapReady()) { BindBatch(); PrepareMap(); newGame = null; StartSegment(0); }
+                    else if (newGame != null)
+                    {
+                        newGame.Frame();
+                        if (newGame.Error != null) EndBatch("new game failed: " + newGame.Error);
+                        else if (DateTime.UtcNow - stageStarted > NewGameLimit) EndBatch("new game exceeded the wall-clock limit at " + newGame.Where);
+                    }
                     else if (DateTime.UtcNow - stageStarted > SceneLimit) EndBatch("map generation exceeded the wall-clock limit");
                     break;
                 case AwaitLoad:
@@ -256,7 +266,9 @@ internal class Controller
         quickstartError = null;
         batchOpen = true;
         Stage(AwaitMap);
-        Quickstarter.Queue(Identity, progress.Request.Seed, batch.MapSize, ex => quickstartError = ex.Message);
+        newGame = null;
+        if (batch.NewGamePages) (newGame = new NewGameFlow(Identity, BatchId, progress.Request.Seed, batch.MapSize)).Begin();
+        else Quickstarter.Queue(Identity, progress.Request.Seed, batch.MapSize, ex => quickstartError = ex.Message);
     }
 
     private void PrepareMap()
@@ -266,7 +278,8 @@ internal class Controller
         Find.TickManager.CurTimeSpeed = TimeSpeed.Paused;
         record.WorldSeed = Find.World.info.seedString;
         record.StartingTile = map.Tile;
-        record.Setup.Add($"Fresh seeded quickstart: Crashlanded, Cassandra Rough, world seed '{record.WorldSeed}', tile {map.Tile} ({map.Biome.defName}), map {map.Size.x}x{map.Size.z}");
+        record.Setup.Add((newGame != null ? $"New game through the player's pages ({string.Join(" > ", newGame.Pages)})" : "Fresh seeded quickstart")
+            + $": Crashlanded, Cassandra Rough, world seed '{record.WorldSeed}', tile {map.Tile} ({map.Biome.defName}), map {map.Size.x}x{map.Size.z}");
         // 2026-11-08: with the progression modpack every map came out 126x384 whatever size was requested.
         if (map.Size.x != batch.MapSize || map.Size.z != batch.MapSize)
             record.Setup.Add($"Map is {map.Size.x}x{map.Size.z}, not the requested {batch.MapSize}x{batch.MapSize}: another mod changed the generated size; layout searches cover the larger dimension");
@@ -680,7 +693,7 @@ internal static class Quickstarter
         }, "Play", null, false, ex => { Log.Error(Harness.Settings.LogPrefix + "Quickstart failed: " + ex); failed(ex); });
     }
 
-    private static bool Temperate(PlanetTile tile)
+    internal static bool Temperate(PlanetTile tile)
     {
         var t = Find.WorldGrid[tile];
         return t.PrimaryBiome == BiomeDefOf.TemperateForest && (t.hilliness == Hilliness.Flat || t.hilliness == Hilliness.SmallHills)

@@ -21,7 +21,8 @@ public abstract class HarnessSettings
     // Any type from the production assembly, so the harness can hash it and find the installed mod folder.
     public abstract Type ProductionType { get; }
     public abstract IEnumerable<Batch> CreateBatches();
-    // Gameplay batches in run-all order. The diagnostic self-check is always run first.
+    // Gameplay batches in run-all order. The diagnostic self-check is always run first, then the shared new-game batch
+    // unless this list places it.
     public abstract IEnumerable<string> RunAll { get; }
 
     public virtual string LogPrefix => $"[{DisplayName} tests] ";
@@ -101,8 +102,11 @@ public static class Batches
     }
 
     private static Dictionary<string, Batch> Create() =>
-        new Batch[] { new DiagnosticBatch(), new DiagnosticAutosaveBatch(), new DiagnosticCancelBatch(), new DiagnosticStallBatch(), new PerfBatch() }
+        new Batch[] { new DiagnosticBatch(), new DiagnosticAutosaveBatch(), new DiagnosticCancelBatch(), new DiagnosticStallBatch(), new PerfBatch(), new NewGameBatch() }
             .Concat(Harness.Settings.CreateBatches()).ToDictionary(b => b.Id);
 
-    public static IEnumerable<string> RunAll => new[] { "diagnostic" }.Concat(Harness.Settings.RunAll);
+    // A mod may place new-game itself; otherwise it runs straight after the diagnostic.
+    public static IEnumerable<string> RunAll =>
+        new[] { "diagnostic" }.Concat(Harness.Settings.RunAll.Contains(NewGameBatch.BatchId) ? Array.Empty<string>() : new[] { NewGameBatch.BatchId })
+            .Concat(Harness.Settings.RunAll);
 }

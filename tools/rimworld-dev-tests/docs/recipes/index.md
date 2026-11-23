@@ -20,6 +20,7 @@ Search this index by symptom, required state or game type. Read only the matchin
 | Language, translation, run in Russian or Chinese, langFolderName, game stays English | [Authoring](../authoring.md#mod-sets), [game facts](../game-facts.md#languages) | `run --language`; the launcher fails a run that loaded another language |
 | Wrong load order, loadAfter ignored, integration both ways | [Authoring](../authoring.md#mod-sets) | `looseOrderSets` in `devtests.json` |
 | Job reference changed, job pooled, food reserved by an eater, speed will not change, stranger in black | [game facts](../game-facts.md#reported-by-other-projects-not-verified-here) | Reported for 1.6, not verified on 1.7 |
+| New game, new colony, world generation page, planet, landing site, starting site, ideoligion page, colonist page, scenario page, quickstart skips pages | [Authoring](../authoring.md#new-game) | Shared `new-game` batch in every `run-all`; `Batch.NewGamePages` for a mod's own batch |
 | Stat offset, quality, pain, clamp, age, gear | [game facts](../game-facts.md#stats) | Versioned facts; use an adult subject for offset ratios |
 
 To add or revise a recipe, use [maintenance](../maintaining.md). Store expected mod behavior and run histories in the owning mod; link the evidence here.
