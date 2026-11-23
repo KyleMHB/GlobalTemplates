@@ -20,6 +20,7 @@ The named skills below are optional integrations. Resolve them through [skill lo
 - Preserve planning context through ticket creation where practical; start each per-ticket implementation fresh from its ticket and completed blockers.
 - Count implementation's completed `code-review` as the review step when explicitly requested. Use `pr` when writing a PR body; recommend `retro` when the session reveals useful improvements to instructions, tooling, or checks.
 - Respect the installed skills' invocation rules. Upstream's planning and implementation entry points are user-invoked; do not auto-invoke `tdd` or `code-review` unless explicitly requested by the user. A user's explicit `implement` or `implement-spec` invocation counts as that request for the steps those skills define.
+- **Subagent models:** pass `model` on every subagent. Exploration, research, merger and review subagents use `sonnet`. An implementer uses its ticket's `Recommended model:` line, else `sonnet`. When writing tickets, mark `Recommended model: opus` only where a mistake would be subtle and costly, such as silently losing player settings or saves.
 - When choosing a planning route or coordinating a multi-session build, read `Git/matt-pocock-workflow.md` for prerequisites, rationale, handoffs, and the verified v1.3.2 sequence.
 
 ## Implementation & Verification
