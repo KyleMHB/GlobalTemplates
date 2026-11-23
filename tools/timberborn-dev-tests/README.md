@@ -34,7 +34,7 @@ Defaults assume Steam's standard folder, `C:\Program Files (x86)\Steam\steamapps
 
 ## Build and run
 
-Run `run` and `restore` from your own terminal, with Steam running and Timberborn closed. The game ignores registry changes made from an agent's session.
+Run `run` and `restore` with Steam running and Timberborn closed, from your own terminal or an agent's. Started from inside the Claude desktop app, they rerun themselves outside it, because the app keeps a private copy of the registry that the game never reads. The command prints `Registry writes from here don't reach the game, so this runs outside the app package` and carries on streaming the output. An agent needs the sandbox switched off for these two commands.
 
 From the mod root, for example:
 

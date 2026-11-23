@@ -12,8 +12,10 @@ Timberborn through Steam with its log in the run folder, waits for report.json, 
 removes the dev folder and checks the player's data was untouched. Each run starts a fresh game (D4). Run folders are under
 work/runs.
 
-The user runs `run` and `restore` from their own terminal: registry writes made from an agent's sandboxed session never
-reach the game (SPEC D2). If a launcher was killed mid-run, the next `run` restores the key first; `restore` does it alone.
+An agent can run `run` and `restore` too. Inside the Claude desktop app, a packaged Windows app, HKCU writes go to a private
+hive the game never reads, so those commands first test whether a write reaches an ordinary process and, if not, rerun
+themselves outside the package through WMI and stream the output back (SPEC D2). If a launcher was killed mid-run, the next
+`run` restores the key first; `restore` does it alone.
 
 Exit codes: 0 pass, 1 failures or isolation breach, 2 timeout, crash or no report, 3 refusal (including the in-game probe
 refusing a run whose isolation did not reach the game), 4 launcher error.
@@ -828,7 +830,7 @@ def run_command(argv=None):
     parser.add_argument("--config", type=Path,
                         help="the mod's DevTests/devtests.json; run keeps that mod and its RequiredMods enabled (default: no mods)")
     commands = parser.add_subparsers(dest="command", required=True)
-    launch = commands.add_parser("run", help="launch Timberborn and run a batch in a new game (user's terminal only)")
+    launch = commands.add_parser("run", help="launch Timberborn and run a batch in a new game")
     launch.add_argument("batch", help="batch to run: smoke, diagnostic or one of the mod's")
     launch.add_argument("--map", help="built-in map for the new game, instead of the batch's own (_Mini by default)")
     launch.add_argument("--hours", type=float, default=2.0, help="game hours the smoke batch runs")
@@ -874,11 +876,131 @@ def run_command(argv=None):
     return run(args, paths, prefs, config)
 
 
+# ---- Package relay ----------------------------------------------------------------------------------------------------------
+
+# A packaged (MSIX) app such as the Claude desktop app has its HKCU writes, and those of the processes it starts, redirected
+# to a private hive (%LOCALAPPDATA%/Packages/<family>/SystemAppData/Helium/User.dat), even where a child process reports no
+# package identity. The game, started by Steam outside the package, never sees them. Commands that write PlayerPrefs first
+# check whether a write reaches an ordinary process; if not, they rerun themselves through WMI, whose Win32_Process.Create
+# starts an ordinary process, and stream its output back.
+RELAY = WORK / "relay"
+RELAYED_COMMANDS = ("run", "restore")
+RELAYED_ENV = ("TIMBERBORN_DIR",)
+RELAY_FLAG = "--relayed"
+PROBE_KEY = r"Software\TimberbornDevTests"
+PROBE_SECONDS = 30
+
+
+def start_outside(command_line):
+    """Start command_line as an ordinary process through WMI; returns its pid."""
+    script = ("$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments "
+              "@{CommandLine=$env:TBTEST_RELAY_COMMAND; CurrentDirectory=$env:TBTEST_RELAY_CWD}; "
+              "if ($r.ReturnValue -ne 0) { [Console]::Error.WriteLine('Win32_Process.Create returned ' + $r.ReturnValue); exit 1 }; "
+              "$r.ProcessId")
+    started = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True,
+                             env=dict(os.environ, TBTEST_RELAY_COMMAND=command_line, TBTEST_RELAY_CWD=os.getcwd()))
+    if started.returncode != 0:
+        raise RuntimeError("could not start a process outside the app package: " + started.stderr.strip())
+    return int(started.stdout.strip())
+
+
+def powershell_line(script):
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    return f"powershell.exe -NoProfile -NonInteractive -EncodedCommand {encoded}"
+
+
+def registry_reaches_outside():
+    """Write a token to HKCU and have an ordinary process read it back."""
+    import winreg
+    token = str(time.time_ns())
+    answer = RELAY / f"probe-{os.getpid()}.txt"
+    RELAY.mkdir(parents=True, exist_ok=True)
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, PROBE_KEY) as key:
+        winreg.SetValueEx(key, "RelayProbe", 0, winreg.REG_SZ, token)
+    try:
+        pid = start_outside(powershell_line(
+            f"Set-Content -Encoding ascii '{answer}' ([string](Get-ItemProperty 'HKCU:\\{PROBE_KEY}' -ErrorAction SilentlyContinue).RelayProbe)"))
+        deadline = time.monotonic() + PROBE_SECONDS
+        while process_alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        return answer.exists() and answer.read_text(encoding="ascii").strip() == token
+    finally:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, PROBE_KEY)
+        answer.unlink(missing_ok=True)
+
+
+def needs_relay(argv):
+    probe = argparse.ArgumentParser(add_help=False)
+    probe.add_argument("--config")
+    probe.add_argument("command", nargs="?")
+    known, _ = probe.parse_known_args(argv)
+    return known.command in RELAYED_COMMANDS and not registry_reaches_outside()
+
+
+def process_alive(pid):
+    handle = ctypes.windll.kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+    if not handle:
+        return None  # can't tell; wait for the exit file alone
+    try:
+        return ctypes.windll.kernel32.WaitForSingleObject(handle, 0) == 0x102  # WAIT_TIMEOUT
+    finally:
+        ctypes.windll.kernel32.CloseHandle(handle)
+
+
+def relay(argv):
+    RELAY.mkdir(parents=True, exist_ok=True)
+    token = RELAY / f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
+    spec, log, exit_file = token.with_suffix(".json"), token.with_suffix(".log"), token.with_suffix(".exit")
+    spec.write_text(json.dumps({"argv": argv, "cwd": os.getcwd(),
+                                "env": {name: os.environ[name] for name in RELAYED_ENV if name in os.environ}}), encoding="utf-8")
+    pid = start_outside(subprocess.list2cmdline([sys.executable, str(Path(__file__).resolve()), RELAY_FLAG, str(spec)]))
+    print(f"Registry writes from here don't reach the game, so this runs outside the app package (pid {pid}, log {log}); it carries on if this command is stopped.", flush=True)
+    offset = 0
+    while True:
+        finished = exit_file.exists()
+        if log.exists():
+            with log.open("rb") as stream:
+                stream.seek(offset)
+                chunk = stream.read()
+            offset += len(chunk)
+            sys.stdout.write(chunk.decode("utf-8", errors="backslashreplace"))
+            sys.stdout.flush()
+        if finished:
+            return int(exit_file.read_text(encoding="utf-8"))
+        if process_alive(pid) is False and not exit_file.exists():
+            print(f"LAUNCHER ERROR: the command outside the app package (pid {pid}) ended without an exit code.")
+            return core.LAUNCHER_ERROR
+        time.sleep(0.5)
+
+
+def relayed(spec_path):
+    """The outside half of relay(): run the command with its output in the log, then record the exit code."""
+    spec_path = Path(spec_path)
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    os.environ.update(spec["env"])
+    os.chdir(spec["cwd"])
+    log = spec_path.with_suffix(".log").open("w", encoding="utf-8", buffering=1)
+    # At the descriptor level, so child processes such as dotnet build write there too.
+    os.dup2(log.fileno(), 1)
+    os.dup2(log.fileno(), 2)
+    sys.stdout = sys.stderr = log
+    code = core.LAUNCHER_ERROR
+    try:
+        code = core.guarded(run_command, spec["argv"])
+    finally:
+        log.flush()
+        spec_path.with_suffix(".exit").write_text(str(code), encoding="utf-8")
+    return code
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == [RELAY_FLAG]:
+        return relayed(argv[1])
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="backslashreplace")
-    return core.guarded(run_command, argv)
+    return core.guarded(lambda args: relay(args) if needs_relay(args) else run_command(args), argv)
 
 
 if __name__ == "__main__":

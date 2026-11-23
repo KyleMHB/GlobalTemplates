@@ -4,9 +4,11 @@ Use this guide for writing cases, changing harness code or triaging results. Rea
 
 ## Who runs what
 
-The user runs every command that launches the game or restores its settings (`run`, `restore`), from their own terminal with Steam running and Timberborn closed. Registry writes from an agent's session never reach the game, even with the sandbox switched off ([game facts](../../Steam/timberborn/game-facts.md#launching-and-testing)). Give the user the exact command, for example `python <templates>/tools/timberborn-dev-tests/tbtest.py --config <mod>/DevTests/devtests.json run smoke`, then read the run folder.
+The agent can run every command, including `run` and `restore`, with Steam running and Timberborn closed. Run those two with the sandbox switched off (`dangerouslyDisableSandbox`), one game at a time: they change the player's mod settings, and the user approves each command. Inside the Claude desktop app their registry writes would land in the app's private copy of the registry, so they rerun themselves outside it through WMI and print `Registry writes from here don't reach the game, so this runs outside the app package` ([game facts](../../Steam/timberborn/game-facts.md#launching-and-testing)). The outside process carries on if the command is stopped; its output is in `work/relay/<id>.log`. A run takes longer than a tool call's limit when its batch does, so run long batches in the background. For example: `python <templates>/tools/timberborn-dev-tests/tbtest.py --config <mod>/DevTests/devtests.json run smoke`.
 
-The agent can build, write cases and run `latest`, `timings`, `list`, `prune` and `release-check`. None of them starts the game.
+To kill a run on purpose, stop the `python.exe` processes whose command line holds `tbtest.py`, then `Timberborn.exe`; the next `run` or `restore` puts the settings back. Read the real registry only from outside the package too (for example `reg.exe export` started through `Win32_Process.Create`), because a read from inside sees the private copy.
+
+`latest`, `timings`, `list`, `prune` and `release-check` never start the game or write the registry.
 
 ## Read a run
 

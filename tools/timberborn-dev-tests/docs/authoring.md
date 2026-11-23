@@ -180,4 +180,4 @@ python tools/mymod_test.py run mymod-core
 python tools/mymod_test.py latest
 ```
 
-The user runs `run` (see [AGENTS.md](../AGENTS.md)). Read `summary.txt` first, then the cases in `report.json`. Record the game build, run id, result and coverage gaps in the mod's own ticket or testing record. A build establishes compilation, not in-game behaviour.
+Run `run` as [AGENTS.md](../AGENTS.md#who-runs-what) describes. Read `summary.txt` first, then the cases in `report.json`. Record the game build, run id, result and coverage gaps in the mod's own ticket or testing record. A build establishes compilation, not in-game behaviour.

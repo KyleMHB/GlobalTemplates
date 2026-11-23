@@ -6,7 +6,7 @@ Search this index by symptom, required state or game system, then read only the 
 | --- | --- | --- |
 | Game crashes at load, another mod's exception, mod list, isolation, disabled mods, ModEnabled | [Authoring: add a mod adapter](../authoring.md#add-a-mod-adapter), [game facts](../../../../Steam/timberborn/game-facts.md#launching-and-testing) | The launcher isolates the mod plus its `RequiredMods`; the full-list check is pending in game |
 | Player's mods left disabled, interrupted run, launcher killed, restore | [README: build and run](../../README.md#build-and-run) | `restore`, and every `run` restores first |
-| Run refused "did not reach the game", registry, PlayerPrefs, agent launch | [AGENTS.md](../../AGENTS.md#who-runs-what), [game facts](../../../../Steam/timberborn/game-facts.md#launching-and-testing) | The user runs `run`; the starter probes every key it needs |
+| Run refused "did not reach the game", registry, PlayerPrefs, agent launch | [AGENTS.md](../../AGENTS.md#who-runs-what), [game facts](../../../../Steam/timberborn/game-facts.md#launching-and-testing) | `run` reruns itself outside the desktop app's package when its registry writes wouldn't reach the game; the starter probes every key it needs |
 | Place a building, template name, no buildable spot, unbuilt building | [Authoring: Kit](../authoring.md#kit) | `Kit.Place`; spike-proven calls |
 | Wait for a condition, timed out, prerequisite lost mid-window, setup-failed | [Authoring: waits](../authoring.md#waits) | `Wait.Until`, `UntilWait.TimedOut`, `Wait.While` |
 | Fixture, load a save, mid-game state, save during a case | [Authoring: fixtures](../authoring.md#fixtures) | Absolute path or a name in `DevTests/Fixtures`; not run in game |
