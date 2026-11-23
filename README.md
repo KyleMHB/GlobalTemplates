@@ -23,12 +23,14 @@ https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/
 | `steam-description.md` | `Steam/steam-description-template.md` | BBCode | Yes |
 | `mod.json` | `Steam/wayward/wayward-mod-json-template.md` | JSON | Yes |
 | `About/About.xml` | `Steam/rimworld/rimworld-about-xml-template.md` | XML | Yes |
+| `manifest.json` | `Steam/timberborn/timberborn-manifest-template.md` | JSON | Yes |
 
 ## Supporting files
 
 - [RimWorld agent read route](Steam/rimworld/agent-guide.md) locates the shared test harness and task-specific artwork guidance.
 - [RimWorld mask editor guide](Steam/rimworld/mask-editor-guide.md) explains cross-mod gallery, painting, review and recipe workflows.
 - [RimWorld artwork guide](Steam/rimworld/rimworld-art-guide.md) covers sprites, directions, masks and native rendering.
+- [Timberborn agent read route](Steam/timberborn/agent-guide.md) covers starting code and data mods, publishing, and the [game facts](Steam/timberborn/game-facts.md) checked against the installed game.
 - `Steam/workshop-page-guide.md` explains how to build an illustrated Workshop page.
 - `Steam/preview-workshop.py` renders a `steam-description.md` file to a local HTML preview. It needs Python 3.9 or newer.
 - `Git/matt-pocock-workflow.md` shows which engineering skill to use for each kind of work.
@@ -78,7 +80,7 @@ When template-backed work is requested:
 - Write the target file and return a concise change and validation summary.
 - Do not edit this source repository unless template maintenance is explicitly requested.
 
-Templates marked as public copy run their reader-facing prose through the bundled `unslop` skill before delivery. For `mod.json`, this covers `description`; for `About/About.xml`, it covers `<description>`. When the skill is unavailable, the agent applies the repository writing rules manually and reports that `unslop` was unavailable.
+Templates marked as public copy run their reader-facing prose through the bundled `unslop` skill before delivery. For `mod.json`, this covers `description`; for `About/About.xml`, it covers `<description>`; for a Timberborn `manifest.json`, it covers `Description`. When the skill is unavailable, the agent applies the repository writing rules manually and reports that `unslop` was unavailable.
 
 Automatic work follows the triggers in `template-routing.md`. A `CHANGELOG.md` may be created or updated after a completed change with useful user, maintainer, or operational impact. An existing `TESTING.md` may be updated when its repeatable procedures, expectations, or evidence materially change; create it only on explicit request. An existing `DEVLOG.md` gains an entry when a session produces a moment worth showing to players; create it only on explicit request.
 

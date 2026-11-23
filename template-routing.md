@@ -6,6 +6,8 @@ Ordinary templates are explicit opt-in. A changelog template may be inspected an
 
 For RimWorld test-case/harness work or artwork, use the [RimWorld agent read route](Steam/rimworld/agent-guide.md). These are reusable workflow guides, not document templates; read only the matching branch.
 
+For Timberborn code mods, data mods, game facts or publishing, use the [Timberborn agent read route](Steam/timberborn/agent-guide.md) the same way.
+
 Public copy also follows [writing and copy](writing-copy.md).
 
 | Target | Template | Activation | Public copy |
@@ -17,3 +19,4 @@ Public copy also follows [writing and copy](writing-copy.md).
 | `steam-description.md` | `Steam/steam-description-template.md` | Explicit template-backed request | Yes |
 | `mod.json` | `Steam/wayward/wayward-mod-json-template.md` | Explicit template-backed request | Yes |
 | `About/About.xml` | `Steam/rimworld/rimworld-about-xml-template.md` | Explicit template-backed request | Yes |
+| `manifest.json` | `Steam/timberborn/timberborn-manifest-template.md` | Explicit template-backed request for a Timberborn mod | Yes |

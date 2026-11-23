@@ -4,6 +4,10 @@
 
 ## 2026-11-23
 
+### Added
+
+- Added Timberborn Dev Tests in `tools/timberborn-dev-tests`, a harness that runs a mod's test cases in the real game. `tbtest.py run <batch>` installs the runner and the mod's DevTests DLL into a separate `Mods/<modId>DevTests` folder, so the installed mod is left as players get it. It keeps only the mod under test and its required mods enabled, starts a fresh game through Steam, and writes a run folder with a summary and report. Afterwards it puts the player's mod settings back exactly and checks their saves were untouched. The commands, exit codes and case API (`HarnessSettings`, `Batch`, `Wait`, `Kit`, steps and known gaps) follow RimWorld Dev Tests. It also has `restore`, `latest`, `timings`, `list`, `release-check` and `prune`. An agent can launch runs too: inside the Claude desktop app, whose registry writes the game never sees, `run` and `restore` rerun themselves outside the app and stream their output back. The game-agnostic parts of the launcher are in `tools/dev-tests-core`. The Timberborn agent guide now points to the harness, and the game facts gained what building it showed about mod priority, starter exceptions and the crash scene.
+
 ### Changed
 
 - RimWorld Dev Tests games now load one at a time: a launch waits until any other test game reaches the main menu, so two startups can't race for the shared `Player.log` or a mod's files. Batches still run in parallel. `lease take`, which deploy scripts call, also waits while another test game is loading that mod.
@@ -11,6 +15,8 @@
 ## 2026-11-22
 
 ### Added
+
+- Added Timberborn modding guidance under `Steam/timberborn`: a read route for starting code and data mods, a `manifest.json` template, and game facts checked against game version 1.1.2.8. They cover mod folders, version folders, load order, Harmony and configurator contexts. `AGENTS.md` and `template-routing.md` now point to them. `tools/timberborn-dev-tests/SPEC.md` plans a Timberborn test harness, and the game facts record what a harness spike proved in game.
 
 - RimWorld Dev Tests reports errors naming the mod that were logged while the game loaded. Every summary has a `Startup:` line, `report.json` lists them in `startupModErrors`, and under `FailOnModErrors` they fail the run. Mods no longer need their own startup-log batch.
 - Several mods' RimWorld Dev Tests can run at once, each in its own game, up to `maxGames` in `rimtest.local.json` (default 3). Install leases are now per installed mod, so only checkouts of the same mod take turns. A run waits for a free game slot instead of failing, and the `perf` batch and recorded runs wait until no other game is running a batch. A run's summary says how many other test games were running.

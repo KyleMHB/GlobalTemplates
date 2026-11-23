@@ -36,7 +36,9 @@ Keep group headings, introductions and explanatory notes as native Steam text. E
 
 For BBCode, use `[h1]` for primary sections and `[h2]` for their feature subsections. Keep explanatory prose as actual text so readers can select and translate it. Images carry visual relationships and examples, rather than the entire manual.
 
-Done: the first three content sections are Description, Features and How to Use; Links is last; applicable safety and attribution content is preserved.
+Make the media answer the description template's why as well as the text does. The first gallery item, and the opening of any promo video, shows the problem the mod fixes and the payoff, for example a before/after of the same raid with and without the mod. Images and clips that show how a feature works come after it. A gallery of mechanics alone tells a viewer what the mod does but not why to install it.
+
+Done: the first three content sections are Description, Features and How to Use; Links is last; applicable safety and attribution content is preserved; the first gallery item shows the why.
 
 ## 3. Write the copy
 

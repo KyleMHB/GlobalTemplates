@@ -1,0 +1,37 @@
+<Project>
+  <!--
+    Shared Timberborn developer test runner. A mod's DevTests project imports this file after setting:
+      DevTestsProductionDll  path to the mod's production DLL (optional; the mod-less smoke run has none)
+    and optionally TimberbornPath or TimberbornManaged. Machine-specific paths go in an untracked
+    TimberbornDevTests.local.props next to this file.
+    The game loads every *.dll under a mod folder with Assembly.Load(bytes), so every game reference is compile-only
+    (Private=false). The runner reference is compile-only too: tbtest.py installs the runner it builds itself, beside the
+    mod's DevTests DLL, so only the DevTests DLL reaches a mod's output.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)TimberbornDevTests.local.props" Condition="Exists('$(MSBuildThisFileDirectory)TimberbornDevTests.local.props')" />
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <DebugType>none</DebugType>
+    <TimberbornPath Condition="'$(TimberbornPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Timberborn</TimberbornPath>
+    <TimberbornManaged Condition="'$(TimberbornManaged)' == ''">$(TimberbornPath)\Timberborn_Data\Managed</TimberbornManaged>
+    <TimberbornDevTestsDir>$(MSBuildThisFileDirectory)</TimberbornDevTestsDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(TimberbornDevTestsDir)TimberbornDevTests.csproj" Condition="'$(MSBuildProjectName)' != 'TimberbornDevTests'" Private="false" />
+    <Reference Include="$(TimberbornManaged)\Timberborn.*.dll" Private="false" />
+    <Reference Include="$(TimberbornManaged)\Bindito.Core.dll" Private="false" />
+    <Reference Include="$(TimberbornManaged)\Bindito.Unity.dll" Private="false" />
+    <Reference Include="$(TimberbornManaged)\UnityEngine.dll" Private="false" />
+    <Reference Include="$(TimberbornManaged)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="$(TimberbornManaged)\Newtonsoft.Json.dll" Private="false" />
+    <Reference Include="$(TimberbornManaged)\System.Collections.Immutable.dll" Private="false" />
+    <Reference Include="$(DevTestsProductionDll)" Condition="'$(DevTestsProductionDll)' != ''" Private="false" />
+  </ItemGroup>
+</Project>
