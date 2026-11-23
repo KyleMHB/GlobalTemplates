@@ -8,8 +8,15 @@
 
 - Added Timberborn Dev Tests in `tools/timberborn-dev-tests`, a harness that runs a mod's test cases in the real game. `tbtest.py run <batch>` installs the runner and the mod's DevTests DLL into a separate `Mods/<modId>DevTests` folder, so the installed mod is left as players get it. It keeps only the mod under test and its required mods enabled, starts a fresh game through Steam, and writes a run folder with a summary and report. Afterwards it puts the player's mod settings back exactly and checks their saves were untouched. The commands, exit codes and case API (`HarnessSettings`, `Batch`, `Wait`, `Kit`, steps and known gaps) follow RimWorld Dev Tests. It also has `restore`, `latest`, `timings`, `list`, `release-check` and `prune`. An agent can launch runs too: inside the Claude desktop app, whose registry writes the game never sees, `run` and `restore` rerun themselves outside the app and stream their output back. The game-agnostic parts of the launcher are in `tools/dev-tests-core`. The Timberborn agent guide now points to the harness, and the game facts gained what building it showed about mod priority, starter exceptions and the crash scene.
 
+- Added `tools/tickets/tickets.py`, which prints one line per `.scratch/` ticket with its status and blockers. `--open` hides finished tickets. `AGENTS.md` tells agents to run it before reading tickets to work out what is left.
+- Added `tools/copy-lint/copy_lint.py`, which fails on em dashes and on the banned words it reads from `writing-copy.md`, in the same files as the unslop scope. With `--staged` it checks only added lines and changed description fields, so older copy does not block a commit. A line with `copy-lint: allow` is skipped. The pre-commit hooks of Spearfishing, Loot Scavenging, Lumen Stones, LFS UI Rethemed and Torii Gates and Lanterns run it.
+- `AGENTS.md` now sets a model for every subagent: Sonnet for exploration, research, merging and review, and for implementers unless their ticket says `Recommended model: opus`.
+
 ### Changed
 
+- `writing-copy.md` now holds the one list of files that get `unslop`: README, changelog, Steam and website descriptions, and the description field of `About.xml`, `mod.json` and a Timberborn `manifest.json`. The `unslop` skill and `AGENTS.md`, which each listed different files, now match it.
+- Workshop art guidance now covers preview images and gallery art, not only illustrated pages. It sets text in the game's own font by default and says where `RimWordFont.ttf` is kept. The RimWorld read route links to it.
+- The author profile says new mod and submod ideas go in the mod-ideas repo, even when the session is open in a related mod's repo.
 - RimWorld Dev Tests games now load one at a time: a launch waits until any other test game reaches the main menu, so two startups can't race for the shared `Player.log` or a mod's files. Batches still run in parallel. `lease take`, which deploy scripts call, also waits while another test game is loading that mod.
 
 ## 2026-11-22

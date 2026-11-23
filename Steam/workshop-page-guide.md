@@ -54,7 +54,9 @@ Done: the text accurately describes the candidate release, reads plainly, and ha
 
 ## 4. Build the images
 
-One approach that works: deterministic Python/Pillow composition with original local game sprites and the game's font, with the renderer reading values from the mod's settings and the installed game definitions. That keeps the diagrams consistent with the implementation.
+Set all text in the game's own font unless the user picks another. For RimWorld that is `RimWordFont.ttf`, kept outside any published repo at `Configurable Quality/artifacts/steam-page-mockup/RimWordFont.ttf` in the RimWorld projects folder; existing renderers reach it as `ROOT.parent / "Configurable Quality" / "artifacts" / "steam-page-mockup" / "RimWordFont.ttf"`. A system font such as Arial or Segoe UI reads as off-brand.
+
+Compose with deterministic Python/Pillow, original local game sprites and that font, with the renderer reading values from the mod's settings and the installed game definitions. That keeps the diagrams consistent with the implementation.
 
 Reuse the method, adapting the visual language to the mod:
 

@@ -4,10 +4,11 @@
 
 Resolve shared files from this checkout or a user/project-configured Templates root. If unavailable and network access is allowed, use `https://raw.githubusercontent.com/KyleMHB/GlobalTemplates/main/`. Paths in this file are relative to that root.
 
-- **User-facing copy:** before writing reader-facing prose (README, changelog, Steam description, `About.xml`, `mod.json` or Timberborn `manifest.json` descriptions), read `writing-copy.md`.
+- **User-facing copy:** before writing reader-facing prose (README, changelog, Steam description, website description, `About.xml`, `mod.json` or Timberborn `manifest.json` descriptions), read `writing-copy.md`.
 - **Templates:** before creating or editing `README.md`, `CHANGELOG.md`, `TESTING.md`, `DEVLOG.md`, `steam-description.md`, `mod.json`, `About/About.xml` or a Timberborn mod's `manifest.json`, read `template-routing.md`. This includes a completed change with useful user, maintainer or operational impact (changelog), a material change to an existing `TESTING.md`'s procedures, and, in a project with a `DEVLOG.md`, a change players could see: a first working feature, replaced art or animation, a visible fix, or refilmed footage (devlog).
 - **RimWorld testing or artwork:** read the short [RimWorld agent read route](Steam/rimworld/agent-guide.md), then only the relevant harness or artwork topic.
 - **Timberborn modding:** read the short [Timberborn agent read route](Steam/timberborn/agent-guide.md), then only the relevant branch.
+- **Ticket status:** to answer what is left, open or next in a repo with `.scratch/` tickets, run `python tools/tickets/tickets.py <repo> --open` first, then read only the tickets that matter.
 - **Missing skill:** before reporting a named skill unavailable, read `skill-lookup.md`.
 
 ## Engineering workflow routing
@@ -19,6 +20,7 @@ The named skills below are optional integrations. Resolve them through [skill lo
 - Preserve planning context through ticket creation where practical; start each per-ticket implementation fresh from its ticket and completed blockers.
 - Count implementation's completed `code-review` as the review step when explicitly requested. Use `pr` when writing a PR body; recommend `retro` when the session reveals useful improvements to instructions, tooling, or checks.
 - Respect the installed skills' invocation rules. Upstream's planning and implementation entry points are user-invoked; do not auto-invoke `tdd` or `code-review` unless explicitly requested by the user. A user's explicit `implement` or `implement-spec` invocation counts as that request for the steps those skills define.
+- **Subagent models:** pass `model` on every subagent. Exploration, research, merger and review subagents use `sonnet`. An implementer uses its ticket's `Recommended model:` line, else `sonnet`. When writing tickets, mark `Recommended model: opus` only where a mistake would be subtle and costly, such as silently losing player settings or saves.
 - When choosing a planning route or coordinating a multi-session build, read `Git/matt-pocock-workflow.md` for prerequisites, rationale, handoffs, and the verified v1.3.2 sequence.
 
 ## Implementation & Verification
