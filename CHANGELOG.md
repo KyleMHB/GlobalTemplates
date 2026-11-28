@@ -19,6 +19,7 @@
 - `writing-copy.md` now holds the one list of files that get `unslop`: README, changelog, Steam and website descriptions, and the description field of `About.xml`, `mod.json` and a Timberborn `manifest.json`. The `unslop` skill and `AGENTS.md`, which each listed different files, now match it.
 - Workshop art guidance now covers preview images and gallery art, not only illustrated pages. It sets text in the game's own font by default and says where `RimWordFont.ttf` is kept. The RimWorld read route links to it.
 - The author profile says new mod and submod ideas go in the mod-ideas repo, even when the session is open in a related mod's repo.
+- The RimWorld art guide starts a new design with one view, compared side by side with a vanilla sprite of the same role, before making the other facings. It adds quarter-turn layouts for directional objects, matches joins between materials to that reference, and covers repairing a dark patch on an opaque surface. An author profile can point to a local copy of the extracted game textures with `rimworld-art-source`.
 - RimWorld Dev Tests games now load one at a time: a launch waits until any other test game reaches the main menu, so two startups can't race for the shared `Player.log` or a mod's files. Batches still run in parallel. `lease take`, which deploy scripts call, also waits while another test game is loading that mod.
 
 ## 2026-11-22

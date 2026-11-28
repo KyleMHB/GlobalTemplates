@@ -8,8 +8,8 @@ Search headings with `rg -n '^##|^###' Steam/rimworld/rimworld-art-guide.md` fro
 
 | Task or symptom | Section |
 | --- | --- |
-| New object or localized correction | [Define the object](#1-define-the-object-before-generating-it), [approve a master](#2-approve-one-master-design) |
-| Layers, mixed materials, repeat failures | [Route choice](#choose-ownership-polygons-or-separate-layers), [evidence limits](#evidence-still-needed) |
+| New object or localized correction | [Define the object](#1-define-the-object-before-generating-it), [compare the first view](#2-approve-one-master-design) |
+| Layers, mixed materials, repeated surface defects | [Material layers and local repairs](#choose-ownership-polygons-or-separate-layers) |
 | First rotation, change of material across views, or inconsistent perspective | [Directional views](#3-derive-the-other-views-from-that-design) |
 | Framing, resize, anchor or export | [Export](#4-export-color-and-material-regions-together), [numeric framing](#numeric-framing-for-separate-generation), [texture constraints](#engine-texture-constraints) |
 | Paint a mask or review gallery artwork | [Mask editor](mask-editor-guide.md) |
@@ -26,7 +26,7 @@ Search headings with `rg -n '^##|^###' Steam/rimworld/rimworld-art-guide.md` fro
 
 Ludeon publishes RimWorld's source art through the [RimWorld art source forum post](https://ludeon.com/forums/index.php?topic=2325.0), which links a public [Dropbox folder](https://www.dropbox.com/sh/mz6zjq3f1d654f3/AACX_OMdBG_J78hF2Ph-HzM3a?dl=0). Recorded 2026-11-09: `Game art source` holds one zip per release (core, Royalty, Ideology, Biotech, Anomaly, Odyssey), laid out like the game's `Textures` tree (`Things/Building/...`, `Terrain`, `UI`, `World`). The folder was updated through 2025 although the post was last edited in 2021. Large zips cannot be previewed in the browser; downloading one requires the user's permission.
 
-Use it as the reference for vanilla camera, contour, palette, detail density and file conventions. Apply the same provenance rule as for another mod's art: check Ludeon's current mod and content policy before redistributing derived pixels. The post's "do as you like" answer addressed technical requirements, not licensing.
+Use the counterpart's resolved `graphicData.texPath`, facing and `drawSize` to locate and scale the source. If the selected author profile lists `rimworld-art-source`, start with that local extraction. Composite layered PSDs with `psd_tools.PSDImage.open(path).composite().convert("RGBA")` and inspect the result before attaching it. Label untinted source art on comparison sheets. Check Ludeon's current mod and content policy before redistributing derived pixels.
 
 Conventions observed in an Odyssey sample (scaled previews; native dimensions and mask alpha not measured):
 
@@ -93,19 +93,23 @@ For a new design, record the relevant contract fields. For a localized edit, nam
 | Placement | Footprint, canvas, alpha bounds, draw size and anchor |
 | Edit scope | Allowed changes and protected features/pixels |
 
-Assign each attached image a role: edit target/design, own-family motif, rendering, palette or layout. For a redo, start from the object's own design and list what to retain, replace and borrow. A same-role rendering example supplies camera, shading and contour treatment; its housing geometry is borrowed only when explicitly chosen. Describe replacement construction positively and name removed parts. Completion includes a design that remains recognizable as its own family, rather than a recoloured rendering example.
+Assign each attached image a role. The edit target or layout controls geometry and camera. The rendering example controls contour, material treatment and shading. Use a separate motif or palette reference when needed. For a redo, start from the object's own design and list what to retain, replace and borrow. Describe the replacement construction and keep the features that identify the object's family.
 
 For simplification, describe which broad shading planes remain and which surfaces become smooth. A facet count can diagnose complexity but cannot replace visual judgment. Use the project's master/provenance registry when one exists. Completion means the contract identifies what survives across affected views.
 
 ### 2. Approve one master design
 
-Generate a complete representative design and obtain the needed design feedback before deriving material layers or a full family. Distinguish a *selected* design, which is still being refined, from an *approved* one, which is final. Say which you are recording when the author chooses. **Approval is final:** an approved design's pixels never change to satisfy a rule, measurement or later review; only a redo the author asks for reopens it. After approval, add only its material mask and views or frames computed from it by recipe. Anything with new pixels, or a change of framing or colour, is a new candidate.
+For a new design or an unsettled rendering style, start with one representative view. On a directional object, pick the facing that reveals the hardest overlap and use the [same-facing sprite or layout](#3-derive-the-other-views-from-that-design). Attach a same-role rendering reference. Use a [vanilla counterpart](#fit-to-vanilla) when vanilla fit is the goal, or the project's chosen example for its house style.
+
+Show the exported candidate and that reference side by side, scaling each full canvas by its own draw size at the same pixels per cell. Check landmarks, visible thickness and overlaps against the layout. Compare the strength of the outer contour, contact shadows and the treatment of each material against the rendering reference. Name the visible mismatch if either judgment is unresolved. Refine the first view before spending calls on the other facings or family members.
+
+Obtain design feedback through the project's existing selection step. A *selected* design is still being refined. An *approved* design is final. Say which you are recording when the author chooses. Only a user-requested redo reopens approved pixels. After approval, masks and views or frames computed by recipe may follow. New pixels, framing or colour make a new candidate.
 
 On approval, record the source, its export recipe and the exported texture's hash with the author's words and date. Requests, references, attempts and tool details are optional, kept when the project asks for them. Keep a layered master when the tool produces one, as vanilla does for some sources. Compare it with the approved sibling at intended display size. Record a model version only when the tool exposes it.
 
 Use the active image-editing tool instructions for new artwork and repainting. Deterministic mask/export operations preserve source artwork. A flattened image cannot guarantee independently editable parts; record that limitation. For exact-preservation edits, compare pixels and alpha outside the permitted region. If they drift, restore the protected region with a declared transform and inspect the join, or retain the result as unapproved.
 
-After a spatial failure, change the supplied evidence or method: a labelled layout, isolated component or derivation from the complete design. Repeating coordinates more emphatically does not improve control. After two attempts repeat the defect, change method or stop. Completion means the master meets the contract at game scale.
+After a spatial failure, change the evidence with a labelled layout, isolated component or derivation from the complete design. If a targeted retry repeats a defect, change method or stop. See [material layers and local repairs](#choose-ownership-polygons-or-separate-layers) for a defect confined to one surface.
 
 ### Choose ownership polygons or separate layers
 
@@ -119,6 +123,8 @@ Before design selection, a colour-only concept may leave ownership explicitly un
 
 A coherent generated part may be split deterministically when the cut follows its real contour. Layer order cannot fix pixels assigned to the wrong part. Inspect joins at normal display size. Correct misplaced partitions or placement first; when the source itself is ambiguous, choose a localized edit, separate component or new generation according to the preservation contract. Neither editing nor regeneration guarantees preservation.
 
+When a dark patch appears on an intended opaque surface, check the exported alpha against light and dark backdrops. If a local edit repeats the defect and the project permits compositing, reuse clean material from the same object's matching surface. Mask only that surface, retain its outline, folds and joins, and record the source and transform in the candidate's export recipe. Check opacity inside the repair and inspect its edge at map size. If the material or lighting cannot transfer, isolate the component or show the unresolved candidate.
+
 ### Evidence still needed
 
 Mechanical success, visual acceptance and runtime behavior are separate. One successful object establishes feasibility, not prompt reliability, directional consistency or cross-object efficiency. Record attempts and corrections only when the project asks for that record; open questions alone do not authorize throwaway experiments, bulk redraws or gameplay builds. Review a candidate in-game when the feature and task scope permit it. A CPU preview cannot establish native shader or menu behavior.
@@ -127,9 +133,9 @@ Mechanical success, visual acceptance and runtime behavior are separate. One suc
 
 Start with the direction that exposes the most new geometry. If the intended object already exists in that direction, attach its same-facing sprite first as the edit target. A second view can supply the approved material or motif. For a material change, keep the target's silhouette, visible face depths and overlaps.
 
-For a new shape, mark the parts on its occupied cells and sketch the required view against a same-role camera reference. Show the top, the near face and what hides behind it. For repeated parts such as four clamps, place copies of one block around the base and turn the assembly under a fixed camera and light. Use the resulting view as the layout. If the same error survives two attempts, keep the constructed geometry and edit the affected surface or component.
+For a new directional design that turns through 90°, draw the front and one quarter turn from the same plan and elevation or a simple blockout. Record width, depth, the ground anchor, the heights of shared edges and which face each fitting attaches to. Turn those parts together under the same camera and scale. A rectangular tabletop swaps width and depth in plan before foreshortening. An apron that wraps all four sides keeps its height above the feet. A towel on the front rail turns with the rail and may become partly hidden. Use one component for repeated parts such as four clamps.
 
-Before deriving the remaining views, compare this candidate with its same-facing layout or reference at the same pixels per cell. For a bed, check the head end, the depth of the near slab edge, and which crystals disappear behind the headboard. The occupied cells, padded texture canvas and visible silhouette each describe a different measurement. For layered equipment or furniture, check the assembled view at its drawing offsets so gaps and unintended overlaps show up.
+Check the quarter-turn layout beside the front before generation, then compare the rendered view with both at the same pixels per cell. Trace fittings to their attachment points and check shared heights and thicknesses where they affect the silhouette or gaps. If the layout changes a dimension, fix the layout. If the render changes it, tighten the edit around the projected shape. If a targeted retry repeats the error, keep the constructed geometry and edit the affected part. For layered equipment or furniture, check the assembled view at its drawing offsets.
 
 Vanilla directional graphics ship north, east and south only, which indicates west is produced by mirroring east. Verify the consuming graphic class's west handling in the installed source before relying on it. When west is mirrored, the east view must read correctly when flipped: no text or logos, no handed details that must stay on one side, and lighting that remains plausible mirrored. Compare feature counts including occluded parts, spacing, visible faces, contour/facet weight and head/foot or wall-facing orientation. Inspect each sheet cell individually. Completion means every required direction meets the same contract without introducing another design.
 
@@ -157,7 +163,7 @@ Follow project permissions and deployment tooling. List intended files/fields, c
 
 ### Fit to vanilla
 
-When the target is vanilla, attach a same-role vanilla sprite to the first design request. Use the same facing where available, or the closest example with comparable construction and materials. Before deriving other views, compare the first candidate beside it at the same pixels per cell. On a bed, where does the pillow meet the mattress through shadow, how deep is the blanket fold, and which frame edges carry ink? Describe those choices in the prompt. Use an icon's outlines when drawing icons.
+For the [first-view comparison](#2-approve-one-master-design), choose the closest vanilla example by role, facing and materials. Read the actual treatment in it. A Core bed gives the pillow volume with a soft underside, the blanket fold a shallow shadow, and the frame a strong outer edge. Put the equivalent choices for the requested object into the prompt. An icon sheet can guide symbol readability; the comparable map sprite sets the furniture's rendering.
 
 Choose the style anchor from where the mod will be played. For a modpack, measure the neighbouring mods' art as well as vanilla, and ask the author which of the mod's own pieces they consider right; those pieces are the house style. Vanilla then supplies a short list of rules, not the whole look. A mod with a strong identity, such as faceted crystals, should not be pushed all the way to vanilla's smooth shading and muted colour.
 
@@ -180,7 +186,7 @@ These follow from the [strict outline figures](#measured-vanilla-rendering) and 
 3. **Inside** the silhouette: the line's outer edge is the alpha edge, so it never changes silhouette, framing or mask extent. An [outward outline layer](#outward-outline-layer) is the exception: it adds width outside.
 4. **Width:** buildings and resource stacks 2.0–3.0px; weapons 1.0–2.0px.
 5. **Even:** local width varies by 1.0px or less.
-6. **Material boundaries:** a black line of 1.0–2.0px. No lines between facets of the same material; those edges are value changes.
+6. **Material boundaries.** Match the same-role reference. Where it uses ink at a join, aim for 1.0–2.0px. Where it uses a contact shadow or value change, describe that treatment in the prompt. Use value changes between facets of the same material.
 7. **Thin parts** under 8px wide (a shard, post or haft) use about 1.5px, so the line never fills the part and a small spiky piece does not read heavy.
 8. **Nothing else at the edge:** no second keyline, light rim, glow or drop shadow.
 
@@ -188,7 +194,7 @@ State the width in source pixels in the generation request (target width ÷ the 
 
 #### Outward outline layer
 
-Image models draw their own contour width whatever the request says, and a strong export reduction thins it further. Generation still asks for the contour, because the model must draw a black exterior and material lines, but its width is then fixed with an outward layer, not with another outline-only edit call.
+Image models can miss the requested contour width, and a strong export reduction thins it further. Ask for the exterior contour and the joins specified by the rendering reference. Use the outward layer to adjust exterior width.
 
 - Plan the layer on the full-size source and carry it onto the canvas with the export's own mapping. Put it **under** the export, so the art's fill never changes and its soft edge sits on black.
 - Fill to the target: the new outer edge lies the target width from the object's body (its fill, closed across material lines). A thin or uneven line is brought up to it.
@@ -196,7 +202,7 @@ Image models draw their own contour width whatever the request says, and a stron
 - Mitre convex corners of the added line so sharp shapes stay sharp, but never at corners made by a crop cutting the art. Leave a sliver of background in notches narrower than the new lines, and fill any pocket the layer closes off.
 - Ignore stray alpha specks and light pixels inside an old line, or each gets a ring of new line.
 - Keep the layer editable, like a material mask, and treat the result as the candidate the author approves. Run it on approved art only for pieces the author names.
-- It cannot reach lines between materials. A return missing its exterior or material lines is a design failure, so regenerate it.
+- Use a new design candidate when a required join or part of the exterior contour is absent. The outward layer adjusts existing exterior width.
 
 Lumen Stones implements this as `tools/artwork.py outline-layer` (`docs/rimworld-art-guide.md#outline-layer` in that repository).
 
@@ -294,11 +300,13 @@ Inspect comparable vanilla definitions, inherited drawing modes/layers, footprin
 
 ## Prompt scaffold
 
+Before regenerating a map sprite for vanilla fit, read its definition and record the facing, footprint, draw size, framing and features to preserve. Attach the existing sprite as the design reference and the extracted same-role, same-facing vanilla sprite as the rendering reference when the author profile provides one. Convert the outline target to export pixels. At the first review, check the transparent export beside both references at the same pixels per cell.
+
 Supply real references and fill only relevant fields:
 
 > Draw [object and direction] using A for [edit target or layout]. Keep [silhouette, parts, positions, visible faces and overlaps]. Change [named surface or component]. B supplies [material, palette or rendering trait]. At game size, [identifying feature] should read first. Leave [surface] quiet. Match B's contour at [edge]. Show [material or contact] through [the value change, shadow or ink visible in B]. Show the complete object on a transparent [canvas and framing].
 
-For a directional edit, use the [target-view procedure](#3-derive-the-other-views-from-that-design) and give each attachment a single job. This example changes a bed's material.
+For a directional edit, use the [target-view procedure](#3-derive-the-other-views-from-that-design). The layout supplies proportions, mounting points and overlaps. Once the project's design and style are settled, use its first accepted sprite for rendering the remaining views. This example changes a bed's material.
 
 > Edit A, the east-facing stone bed. Keep the head crystals on the left, the thickness of the near slab edge and the gold band where it wraps around the side. B supplies the pale rose crystal material. Give the sleeping surface two broad, low-contrast planes. Keep the middle quiet so the raised head reads at map size.
 

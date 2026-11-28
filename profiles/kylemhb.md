@@ -21,3 +21,7 @@ Every new mod or submod idea, with its spec, devlog drafts and placeholder art, 
 Channels the `discord-search` skill searches when no channel is named.
 
 - Modding questions: https://discord.com/channels/214523379766525963/215496692047413249
+
+## rimworld-art-source
+
+Use the extracted RimWorld source textures in `E:/AI/rimworld-lora/extracted` for same-role comparisons. For layered PSD files, the Python environment at `E:/AI/rimworld-lora/tools/.venv/Scripts/python.exe` has `psd_tools`.
