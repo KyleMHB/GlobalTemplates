@@ -6,6 +6,12 @@ Selected only when user or project instructions name this file. Templates never 
 
 https://ko-fi.com/I7L525WMJ6
 
+## discord-url
+
+Invite to the server where players contact me about my mods.
+
+https://discord.gg/jSdyTbSYWQ
+
 ## mod-idea-backlog
 
 Every new mod or submod idea, with its spec, devlog drafts and placeholder art, goes here, even when the session is open in a related mod's repo. Private repo `KyleMHB/mod-ideas` (local checkout `E:\Coding\mod-ideas`). Mod ideas are issues labelled `idea`, a `status:` label and a `game:` label; file them with `gh issue create --repo KyleMHB/mod-ideas`. Specs are Markdown in `specs/<slug>.md` from `specs/TEMPLATE.md`, linked both ways with their issue. The repo's README defines the statuses.

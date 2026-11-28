@@ -15,6 +15,7 @@
 
 ### Changed
 
+- Steam descriptions gain a Discord badge beside Ko-fi and GitHub when the author profile has a `discord-url`.
 - `writing-copy.md` now holds the one list of files that get `unslop`: README, changelog, Steam and website descriptions, and the description field of `About.xml`, `mod.json` and a Timberborn `manifest.json`. The `unslop` skill and `AGENTS.md`, which each listed different files, now match it.
 - Workshop art guidance now covers preview images and gallery art, not only illustrated pages. It sets text in the game's own font by default and says where `RimWordFont.ttf` is kept. The RimWorld read route links to it.
 - The author profile says new mod and submod ideas go in the mod-ideas repo, even when the session is open in a related mod's repo.

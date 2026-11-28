@@ -149,7 +149,10 @@ For mods the author owns or maintains, include these linked badges in the Links 
 
 Replace `{kofi-url}` with the `kofi-url` from the author profile named in the user's or project's agent instructions; when none is set, omit the Ko-fi badge and its introduction. Introduce the badges with: `Support me on Ko-fi.`
 
+Replace `{discord-url}` with the `discord-url` from the same profile; when none is set, omit the Discord badge. With both badges, introduce them with: `Support me on Ko-fi, or ask about my mods on Discord.` With only the Discord badge, use: `Ask about my mods on Discord.`
+
 [url={kofi-url}][img]https://img.shields.io/badge/Support_me_on_Ko--fi-72a4f2?style=for-the-badge&logo=kofi&logoColor=white[/img][/url]
+[url={discord-url}][img]https://img.shields.io/badge/Discord-Join_the_server-5865F2?style=for-the-badge&logo=discord&logoColor=white[/img][/url]
 [url={repository-url}][img]https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white[/img][/url]
 
 For a fork the author maintains, introduce the badges with: `Support me on Ko-fi. This does not imply endorsement by the original authors.` Inspect the inherited license and upstream project terms, and omit the Ko-fi badge when support links or monetization are explicitly prohibited. Keep upstream attribution clear.

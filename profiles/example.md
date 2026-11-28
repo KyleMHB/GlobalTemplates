@@ -6,6 +6,12 @@ Copy this file to `profiles/<your-name>.md`, fill it in, and name it in your use
 
 https://ko-fi.com/yourname
 
+## discord-url
+
+Invite to the server where players can contact you about your mods.
+
+https://discord.gg/yourinvite
+
 ## ai-disclosure
 
 Use the block for the target format verbatim.

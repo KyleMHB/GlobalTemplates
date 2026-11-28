@@ -93,7 +93,7 @@ The README and Steam description templates have two author-specific parts: a Ko-
 
 Agents use only the profile your instructions name, never another file in `profiles/`. With no profile named, they leave out the Ko-fi badge and the AI disclosure instead of publishing a placeholder.
 
-A profile can also list `discord-channels`, the community channels the `discord-search` skill searches when you name no channel.
+A `discord-url` adds a Discord badge to Steam descriptions. A profile can also list `discord-channels`, the community channels the `discord-search` skill searches when you name no channel.
 
 ## Adding or changing templates
 
