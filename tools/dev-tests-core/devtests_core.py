@@ -88,7 +88,7 @@ def guarded(command, argv):
 def pids(image):
     """Process ids of every running process with this image name (Windows)."""
     listing = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {image}", "/FO", "CSV", "/NH"],
-                             capture_output=True, text=True, check=False).stdout
+                             capture_output=True, text=True, errors="replace", check=False).stdout
     return [int(row[1]) for row in (line.split('","') for line in listing.splitlines()) if len(row) > 1 and row[1].isdigit()]
 
 
