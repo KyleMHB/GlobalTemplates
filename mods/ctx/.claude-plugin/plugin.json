@@ -1,0 +1,6 @@
+{
+  "name": "ctx",
+  "version": "0.5.0",
+  "description": "Shows the session's context tokens in the status line with a green, orange or red dot; /context-usage opens the breakdown",
+  "types": "./types/index.d.ts"
+}

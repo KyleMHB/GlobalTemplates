@@ -1,3 +1,5 @@
 __pycache__/
 *.py[cod]
 /Steam/rimworld/local-art-references/
+/.claude/settings.local.json
+/.claude/worktrees/
