@@ -2,6 +2,12 @@
 
 <!-- Agent read route: read only the newest relevant release; locate older versions by searching `^## ` headings. -->
 
+## 2026-11-28
+
+### Fixed
+
+- The Dev Tests launcher no longer crashes before a batch runs once a running game uses more than 1 GB of memory. `tasklist` then prints a thousands separator that isn't valid UTF-8, and decoding it failed.
+
 ## 2026-11-23
 
 ### Added
